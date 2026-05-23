@@ -13,17 +13,10 @@ frontend/node_modules/
 # TypeScript
 *.tsbuildinfo
 
-# Environment variables
-.env
-backend/.env
-
 # Build and dist directories
 dist/
 backend/dist/
 frontend/build/
-
-# Public directory (for frontend)
-frontend/public/
 
 # Vite cache
 .vite/
@@ -35,24 +28,12 @@ coverage/
 .DS_Store
 *.pem
 
-# Ignore package lock files
-package-lock.json
-backend/package-lock.json
-frontend/package-lock.json
-
 # Testing
 coverage/
 jest/
-
-# LSTM network specific (if any data or models should be ignored)
-lstm_network/
 
 # IDE and editor specific files
 .idea/
 .vscode/
 
-# Ignore specific files in frontend folder
-frontend/package-lock.json
-frontend/package.json
-frontend/tsconfig.json
-frontend/vite.config.ts
+local_mongo/
