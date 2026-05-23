@@ -1,0 +1,86 @@
+# Trading 2.0
+
+**Trading** este o platformă avansată de tranzacționare și analiză financiară, proiectată pentru a oferi utilizatorilor acces la piețele globale în timp real.
+
+## Caracteristici Principale
+
+- **Date Bursiere Universale:** Integrare cu Yahoo Finance pentru acces la orice simbol bursier din lume (Acțiuni, ETF-uri, Cripto).
+- **Date în Timp Real:** Prețuri actualizate live cu un mecanism de tip "listener" care reflectă schimbările pieței instantaneu.
+- **Grafice Ajustabile:** Vizualizări interactive și profesionale ale prețurilor, cu posibilitatea de a selecta intervale de timp multiple (1 Zi, 5 Zile, 1 Lună, 6 Luni, 1 An).
+- **Monitorizare Stare Piață:** Indicatori vizuali (Verde/Roșu) care arată dacă bursa este deschisă sau închisă, cu blocarea automată a tranzacțiilor în afara orelor de program.
+- **Predicții AI (LSTM):** Rețea neuronală LSTM integrată pentru predicția prețurilor viitoare ale acțiunilor.
+- **Asistent Chatbot:** Chatbot inteligent integrat (bazat pe Ollama/Llama) pentru asistență personală și analize rapide.
+- **Sistem de Securitate:** Autentificare robustă cu OTP (afișat în consolă în mediul de dezvoltare) și verificare automată a contului.
+
+## Dezvoltator
+
+- **Alexandru Mitroi**
+
+## Arhitectura Sistemului
+
+Proiectul este construit pe o arhitectură de tip microservicii simplificată, unde componentele comunică prin API-uri REST pentru a asigura o separare clară a responsabilităților:
+
+### 1. Frontend (Interfața Utilizator)
+- **Tehnologie:** React 17 cu TypeScript și Vite.
+- **Rol:** Oferă o experiență de utilizare fluidă și modernă. Gestionează starea aplicației, redă graficele interactive (Chart.js) și interacționează cu Backend-ul pentru tranzacții și date live.
+- **Real-time:** Implementează un mecanism de polling eficient pentru a menține prețurile și graficele actualizate fără a reîncărca pagina.
+
+### 2. Backend (Serverul Central)
+- **Tehnologie:** Node.js, Express, TypeScript.
+- **Baza de date:** MongoDB (via Mongoose).
+- **Rol:** Acționează ca nucleu al aplicației. Gestionează autentificarea (JWT + OTP), procesează tranzacțiile financiare, verifică starea pieței (Yahoo Finance API) și servește drept proxy între Frontend și serviciul de AI.
+- **Securitate:** Implementează middleware-uri pentru validarea token-urilor și verificarea drepturilor de acces.
+
+### 3. Serviciul AI (Motorul de Predicție)
+- **Tehnologie:** Python, Flask, TensorFlow/Keras.
+- **Model:** Rețea neuronală de tip LSTM (Long Short-Term Memory) specializată în analiza seriilor temporale.
+- **Rol:** Primește cereri de predicție pentru un anumit simbol bursier, preia datele istorice, le procesează și returnează o valoare estimată a prețului viitor.
+
+### 4. Integrarea Datelor Externe
+- **Sursă Date:** Yahoo Finance (via `yahoo-finance2`). Această integrare permite aplicației să fie "universală", oferind date pentru orice bursă din lume (NYSE, NASDAQ, LSE, BVB, Crypto, etc.) în mod gratuit și fără limite stricte de API.
+
+### 5. Automatizarea (DevOps)
+- **Scripting:** Bash (`start-all.sh`) și Root NPM Scripts.
+- **Rol:** Gestionează ciclul de viață al aplicației în mediul de dezvoltare. Se ocupă de pornirea bazei de date portabile, instalarea automată a dependențelor pe toate cele trei straturi și orchestrarea proceselor în paralel folosind `concurrently`.
+
+## Dependențe și Instalare
+
+Pentru a rula proiectul, ai nevoie de următoarele tehnologii instalate pe sistemul tău:
+
+### 1. Node.js & NPM
+Necesare pentru Backend și Frontend.
+- **Instalare:** Descarcă de pe [nodejs.org](https://nodejs.org/) (recomandat v18 sau mai nou).
+- **Verificare:** `node -v` și `npm -v`
+
+### 2. Python 3.10+ & Pip
+Necesare pentru API-ul de Inteligență Artificială (LSTM).
+- **Instalare (Ubuntu):** `sudo apt install python3 python3-pip`
+- **Instalare (Windows):** Descarcă de pe [python.org](https://www.python.org/).
+
+### 3. Dependențe de sistem (Linux/WSL)
+Pentru pornirea corectă a bazei de date portabile și a scripturilor:
+- `lsof` (pentru verificarea porturilor): `sudo apt install lsof`
+- `curl` (pentru descărcarea bazei de date): `sudo apt install curl`
+
+---
+
+## Cum se rulează proiectul
+
+Proiectul este acum complet automatizat și nu necesită instalări manuale de baze de date globale.
+
+### Pornire rapidă
+Pentru a porni simultan toate serviciile, rulează o singură comandă în terminalul principal al proiectului:
+
+```bash
+./start-all.sh
+```
+
+**Ce face acest script automat:**
+1. **Baza de Date:** Verifică dacă MongoDB rulează. Dacă nu, descarcă o versiune portabilă în folderul `local_mongo` și o pornește automat.
+2. **Backend:** Intră în folderul `backend`, rulează `npm install` pentru a instala bibliotecile necesare (Express, Mongoose, etc.) și pornește serverul pe portul `5869`.
+3. **Frontend:** Intră în folderul `frontend`, rulează `npm install` pentru a instala Vite, React și Chart.js, apoi pornește interfața pe portul `5173`.
+4. **AI/LSTM:** Intră în folderul `lstm_network`, instalează automat dependențele din `requirements.txt` (TensorFlow, Flask, Pandas) folosind `pip` și pornește API-ul pe portul `5000`.
+
+### Notă pentru dezvoltare
+Deoarece serverul de email nu este necesar local, codul **OTP** pentru logare va fi afișat direct în terminalul unde rulează scriptul sub forma:
+`[DEV] Login OTP for user@example.com: XXXXXX`

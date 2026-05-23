@@ -1,0 +1,146 @@
+body {
+    margin: 0;
+    font-family: 'Arial', sans-serif;
+    background: #f3f4f6;
+    color: #000;
+}
+
+.otp-container2 {
+    display: flex;
+    flex-wrap: wrap;
+    height: 100vh;
+}
+
+.left-panel2 {
+    flex: 1;
+    background-image: url('logo.webp'); /* Replace with your image path */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.right-panel2 {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #1f2a38;
+    padding: 20px;
+    width: 100%; /* Ensures full width on smaller screens */
+}
+
+.otp-card2 {
+    background: #003554;
+    padding: 40px;
+    border-radius: 10px;
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.otp-card2 h2 {
+    margin-bottom: 20px;
+    color: #e5e7e6;
+}
+
+.error-message {
+    background: #ff4d4f;
+    color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.otp-card2 form {
+    display: flex;
+    flex-direction: column;
+}
+
+.otp-card2 input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: none;
+    border-radius: 5px;
+    background: #e5e7e6;
+    color: #000;
+}
+
+.otp-card2 input::placeholder {
+    color: #a9a9a9;
+}
+
+.otp-card2 button {
+    width: 100%;
+    padding: 10px;
+    background: #e5e7e6;
+    color: #003554;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.otp-card2 button:hover {
+    background: #d9d9d9;
+}
+
+.retry-button {
+    width: 100%;
+    padding: 10px;
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s;
+    margin-top: 10px;
+}
+
+.retry-button:hover {
+    background: #fb8c00;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .left-panel2 {
+        display: none; /* Hide the left panel entirely on smaller screens */
+    }
+
+    .right-panel2 {
+        flex: 1;
+        width: 100%;
+        justify-content: center;
+        align-items: center;
+        padding: 20px; /* Add padding for better layout */
+    }
+
+    .otp-card2 {
+        padding: 20px; /* Reduce padding on smaller screens */
+        max-width: 90%; /* Adjust width for smaller screens */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .otp-card2 h2 {
+        font-size: 1.5rem; /* Adjust font size */
+    }
+
+    .otp-card2 input {
+        padding: 8px; /* Reduce padding for inputs */
+        font-size: 14px; /* Adjust font size for smaller screens */
+    }
+
+    .otp-card2 button {
+        padding: 8px; /* Reduce padding for buttons */
+        font-size: 14px; /* Adjust font size */
+    }
+
+    .error-message {
+        font-size: 14px; /* Adjust error message font size */
+    }
+}

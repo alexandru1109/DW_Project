@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2017",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "typeRoots": ["./node_modules/@types", "./src/types", "./types"],
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*", "src/tests", "mockPayUService.ts"],
+}
