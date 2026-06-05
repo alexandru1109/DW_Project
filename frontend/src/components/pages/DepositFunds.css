@@ -1,0 +1,246 @@
+body {
+  font-family: 'Inter', 'Noto Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #101923;
+  color: white;
+}
+
+.layout-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.layout-content-container {
+  width: 100%;
+  max-width: 960px;
+  background-color: #101923;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 16px;
+  text-align: center; /* Centered title for small screens */
+}
+
+.description {
+  color: #90abcb;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #314b68;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.option:hover {
+  background-color: #223449;
+  border-color: #358ef3;
+}
+
+.radio-input {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #314b68;
+  background: transparent;
+  cursor: pointer;
+}
+
+.radio-input:checked {
+  border-color: #358ef3;
+  background-color: #358ef3;
+}
+
+.option-text {
+  font-size: 14px;
+  font-weight: medium;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 24px;
+  text-align: center; /* Centered titles for better alignment */
+}
+
+.section-description {
+  color: #90abcb;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.detail {
+  padding: 12px;
+  border-top: 1px solid #314b68;
+}
+
+.label {
+  color: #90abcb;
+  font-size: 14px;
+}
+
+.value {
+  font-size: 14px;
+}
+
+.button-container {
+  margin-top: 16px;
+}
+
+.button {
+  width: 100%;
+  padding: 12px;
+  background-color: #223449;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.button:hover {
+  background-color: #358ef3;
+}
+
+/* Form Styles for ACH Transfer */
+.ach-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: #90abcb;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #314b68;
+  border-radius: 8px;
+  background-color: #101923;
+  color: white;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+.form-input:focus {
+  border-color: #358ef3;
+  outline: none;
+}
+
+.ach-form .button {
+  margin-top: 16px;
+  padding: 12px;
+  background-color: #223449;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.ach-form .button:hover {
+  background-color: #358ef3;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+  .layout-content-container {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .section-title {
+    font-size: 16px;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr; /* Single column for smaller screens */
+    gap: 8px;
+  }
+
+  .form-input {
+    font-size: 12px; /* Smaller font size for inputs on small screens */
+  }
+
+  .button {
+    font-size: 12px; /* Smaller button font */
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .title {
+    font-size: 18px;
+  }
+
+  .description {
+    font-size: 14px;
+  }
+
+  .section-title {
+    font-size: 14px;
+  }
+
+  .button {
+    font-size: 12px;
+  }
+
+  .form-input {
+    font-size: 12px;
+    padding: 8px; /* Smaller padding for smaller screens */
+  }
+}
+.balance-section {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.balance-amount {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #fff;
+}
