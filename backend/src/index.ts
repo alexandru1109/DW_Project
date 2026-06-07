@@ -15,6 +15,7 @@ import portfolioRoutes from './routes/portfolioRoutes';
 import widgetRoutes from './routes/widgetRoutes';
 import balanceRoutes from './routes/balanceRoutes';
 import lstmRoutes from './routes/lstmRoutes';
+import sparkRoutes from './routes/sparkRoutes';
 import path from "path";
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use('/api/market', marketRoutes);
 app.use('/api/widgets', widgetRoutes);
 app.use('/api/balance', balanceRoutes);
 app.use('/api/lstm', lstmRoutes);
+app.use('/api/spark', sparkRoutes);
 
 app.use(errorMiddleware);
 
