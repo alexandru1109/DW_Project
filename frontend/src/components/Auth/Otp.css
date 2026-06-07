@@ -13,7 +13,7 @@ body {
 
 .left-panel2 {
     flex: 1;
-    background-image: url('logo.webp'); /* Replace with your image path */
+    background-image: url('logo.svg'); /* Replace with your image path */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

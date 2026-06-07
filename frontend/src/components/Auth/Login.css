@@ -13,7 +13,7 @@ body {
 
 .left-panel {
     flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către poza ta */
+    background-image: url('logo.svg'); /* Înlocuiește cu calea către poza ta */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
