@@ -1,0 +1,42 @@
+# Ignorăm fișierele masive care explodează limita de tokeni a LLM-urilor
+*-lock.json
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Ignoram fișierele binare si modelele
+*.h5
+*.hdf5
+*.pkl
+*.pb
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+
+# Ignoram mediile virtuale si librariile
+node_modules/
+venv/
+env/
+__pycache__/
+
+# Fisiere de date
+data/
+stream_in/
+stream_out/
+*.csv
+*.json
+
+# Fisiere generate de sistem
+.git/
+dist/
+build/
+.DS_Store
+local_mongo/
+spark-warehouse/
+
+# Fisiere de export context
+claude_context.txt
+export_for_claude.py

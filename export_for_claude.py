@@ -1,58 +1,57 @@
 import os
 import re
 
-# Cele mai stricte extensii (doar codul efectiv de logica si UI, fara styling, fara docs)
-ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.py'}
+# Extensii stricte: doar logica și interfața
+ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.py'}
 
-# Directoare ignorate (orice tine de cache, build, module)
+# Directoare care nu aduc valoare arhitecturala in evaluare
 IGNORE_DIRS = {
     'node_modules', '.git', '__pycache__', 'venv', 'env', 
     'dist', 'build', '.idea', '.vscode', 'local_mongo',
     'spark-warehouse', 'data', 'stream_in', 'stream_out',
-    'tests', '__tests__', 'test'
+    'tests', '__tests__', 'test', 'assets', 'public'
 }
 
-OUTPUT_FILE = 'claude_context_minimal.txt'
+OUTPUT_FILE = 'claude_context.txt'
 
 def generate_context():
     total_files = 0
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
         for root, dirs, files in os.walk('.'):
-            # Filtram directoarele
+            # Filtram directoarele in-place
             dirs[:] = [d for d in dirs if d.lower() not in IGNORE_DIRS and not d.startswith('.')]
             
             for file in files:
-                # Sarim peste fisierele de test pentru a economisi tokeni masiv
-                if 'test' in file.lower() or 'spec' in file.lower():
+                # Ignoram fisierele de teste, lock-uri si imagini
+                file_lower = file.lower()
+                if 'test' in file_lower or 'spec' in file_lower or file_lower.endswith('-lock.json'):
                     continue
                 
                 ext = os.path.splitext(file)[1].lower()
                 
-                # Includem DOAR logica. Fara package.json, fara CSS, fara README.
-                if ext in ALLOWED_EXTENSIONS:
+                # Includem extensiile permise si fisierele package.json (pentru a vedea dependintele)
+                if ext in ALLOWED_EXTENSIONS or file == 'package.json':
                     filepath = os.path.join(root, file)
                     
                     try:
                         with open(filepath, 'r', encoding='utf-8') as infile:
                             content = infile.read()
                             
-                            # Eliminam liniile goale multiple pentru a reduce numarul de tokeni
+                            # Comprimam putin textul
                             content = re.sub(r'\n\s*\n', '\n\n', content)
                             
-                            outfile.write(f"\n// {'='*50}\n")
+                            outfile.write(f"\n// {'-'*50}\n")
                             outfile.write(f"// FILE: {filepath}\n")
-                            outfile.write(f"// {'='*50}\n")
+                            outfile.write(f"// {'-'*50}\n")
                             outfile.write(content.strip())
                             outfile.write("\n")
                             total_files += 1
                     except Exception as e:
-                        print(f"Eroare la citirea {filepath}: {e}")
+                        print(f"Nu am putut citi {filepath}: {e}")
 
     size_kb = os.path.getsize(OUTPUT_FILE) // 1024
     print(f"Gata! Am procesat {total_files} fisiere esentiale.")
-    print(f"Fisierul {OUTPUT_FILE} a fost generat si curatat de whitespace inutil.")
-    print(f"Dimensiunea fisierului este MINUSCULA: {size_kb} KB.")
-    print("Incarca acest fisier 'claude_context_minimal.txt' in Claude. Va merge 100%.")
+    print(f"Dimensiunea fisierului este: {size_kb} KB.")
 
 if __name__ == "__main__":
     generate_context()

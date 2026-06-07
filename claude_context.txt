@@ -1,69 +1,135 @@
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./export_for_claude.py
-// ==================================================
+// --------------------------------------------------
 import os
 import re
 
-# Cele mai stricte extensii (doar codul efectiv de logica si UI, fara styling, fara docs)
-ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.py'}
+# Extensii stricte: doar logica și interfața
+ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.py'}
 
-# Directoare ignorate (orice tine de cache, build, module)
+# Directoare care nu aduc valoare arhitecturala in evaluare
 IGNORE_DIRS = {
     'node_modules', '.git', '__pycache__', 'venv', 'env', 
     'dist', 'build', '.idea', '.vscode', 'local_mongo',
     'spark-warehouse', 'data', 'stream_in', 'stream_out',
-    'tests', '__tests__', 'test'
+    'tests', '__tests__', 'test', 'assets', 'public'
 }
 
-OUTPUT_FILE = 'claude_context_minimal.txt'
+OUTPUT_FILE = 'claude_context.txt'
 
 def generate_context():
     total_files = 0
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
         for root, dirs, files in os.walk('.'):
-            # Filtram directoarele
+            # Filtram directoarele in-place
             dirs[:] = [d for d in dirs if d.lower() not in IGNORE_DIRS and not d.startswith('.')]
 
             for file in files:
-                # Sarim peste fisierele de test pentru a economisi tokeni masiv
-                if 'test' in file.lower() or 'spec' in file.lower():
+                # Ignoram fisierele de teste, lock-uri si imagini
+                file_lower = file.lower()
+                if 'test' in file_lower or 'spec' in file_lower or file_lower.endswith('-lock.json'):
                     continue
 
                 ext = os.path.splitext(file)[1].lower()
 
-                # Includem DOAR logica. Fara package.json, fara CSS, fara README.
-                if ext in ALLOWED_EXTENSIONS:
+                # Includem extensiile permise si fisierele package.json (pentru a vedea dependintele)
+                if ext in ALLOWED_EXTENSIONS or file == 'package.json':
                     filepath = os.path.join(root, file)
 
                     try:
                         with open(filepath, 'r', encoding='utf-8') as infile:
                             content = infile.read()
 
-                            # Eliminam liniile goale multiple pentru a reduce numarul de tokeni
+                            # Comprimam putin textul
                             content = re.sub(r'\n\s*\n', '\n\n', content)
 
-                            outfile.write(f"\n// {'='*50}\n")
+                            outfile.write(f"\n// {'-'*50}\n")
                             outfile.write(f"// FILE: {filepath}\n")
-                            outfile.write(f"// {'='*50}\n")
+                            outfile.write(f"// {'-'*50}\n")
                             outfile.write(content.strip())
                             outfile.write("\n")
                             total_files += 1
                     except Exception as e:
-                        print(f"Eroare la citirea {filepath}: {e}")
+                        print(f"Nu am putut citi {filepath}: {e}")
 
     size_kb = os.path.getsize(OUTPUT_FILE) // 1024
     print(f"Gata! Am procesat {total_files} fisiere esentiale.")
-    print(f"Fisierul {OUTPUT_FILE} a fost generat si curatat de whitespace inutil.")
-    print(f"Dimensiunea fisierului este MINUSCULA: {size_kb} KB.")
-    print("Incarca acest fisier 'claude_context_minimal.txt' in Claude. Va merge 100%.")
+    print(f"Dimensiunea fisierului este: {size_kb} KB.")
 
 if __name__ == "__main__":
     generate_context()
 
-// ==================================================
+// --------------------------------------------------
+// FILE: ./backend/package.json
+// --------------------------------------------------
+{
+  "name": "agiostrading",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "14": "^1.0.1",
+    "@tensorflow/tfjs": "^4.20.0",
+    "@tensorflow/tfjs-node": "^4.20.0",
+    "axios": "^1.7.2",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "googleapis": "^137.1.0",
+    "joi": "^17.13.1",
+    "jsonwebtoken": "^9.0.2",
+    "long": "^5.2.3",
+    "md5": "^2.3.0",
+    "moment": "^2.30.1",
+    "mongodb": "^6.6.1",
+    "mongoose": "^8.3.4",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.13",
+    "stripe": "^15.8.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0",
+    "yahoo-finance2": "^3.14.1"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/md5": "^2.3.5",
+    "@types/mongoose": "^5.11.97",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^20.12.12",
+    "@types/nodemailer": "^6.4.15",
+    "@types/supertest": "^6.0.2",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.6",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
+
+// --------------------------------------------------
 // FILE: ./backend/src/alphaVantageService.ts
-// ==================================================
+// --------------------------------------------------
 import axios from 'axios';
 
 class AlphaVantageService {
@@ -88,9 +154,9 @@ class AlphaVantageService {
 
 export default new AlphaVantageService();
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/index.ts
-// ==================================================
+// --------------------------------------------------
 import express from 'express';
 import dotenv from 'dotenv';
 import connectDB from './db/dbConnection';
@@ -153,9 +219,9 @@ app.listen(PORT, () => {
   console.log(`Connecting to Ollama API at ${LLAMA_API_URL}`);
 });
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/auth/authController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import AuthService from '../auth/authService';
 
@@ -253,9 +319,9 @@ export const confirmPasswordChange = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/auth/authMiddleware.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
@@ -284,9 +350,9 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
 
 export default authMiddleware;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/auth/authService.ts
-// ==================================================
+// --------------------------------------------------
 import bcrypt from 'bcryptjs';
 import User, { IUser } from '../models/userModel';
 import jwt from 'jsonwebtoken';
@@ -466,9 +532,9 @@ public async confirmPasswordChange(email: string, otp: string): Promise<void> {
 
 export default new AuthService();
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/balanceController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import Balance from '../models/balanceModel';
 
@@ -557,9 +623,9 @@ export const subtractBalance = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/chatbotController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import { getChatbotResponse } from '../services/llamaService';
 
@@ -601,9 +667,9 @@ export const getInitialMessages = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/lstmController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import { getPrediction, shouldBuyStock } from '../services/lstmService';
 
@@ -629,9 +695,9 @@ export const shouldBuy = async (req: Request, res: Response) => {
     }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/marketController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import axios from 'axios';
 import YahooFinance from 'yahoo-finance2';
@@ -855,9 +921,9 @@ export const getStockHistory = async (req: Request, res: Response) => {
     }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/portfolioController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import Transaction from '../models/transactionModel';
 import moment from 'moment';
@@ -996,9 +1062,9 @@ export const getPortfolioGraphData = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/sparkController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import { exec } from 'child_process';
 import path from 'path';
@@ -1030,9 +1096,9 @@ export const runSparkBatch = (req: Request, res: Response): void => {
     });
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/stockController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Stock from '../models/stockModel';
@@ -1106,9 +1172,9 @@ export const getUserStocks = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/transactionController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import Transaction from '../models/transactionModel';
@@ -1220,9 +1286,9 @@ export const getTransactionHistory = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/userController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import User from '../models/userModel';
 import bcrypt from 'bcryptjs';
@@ -1323,9 +1389,9 @@ export const getUserProfilePicture = async (req: Request, res: Response) => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/controllers/widgetController.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response } from 'express';
 import axios from 'axios';
 
@@ -1349,9 +1415,9 @@ export const getCustomWidgets = async (req: Request, res: Response) => {
     }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/db/dbConnection.ts
-// ==================================================
+// --------------------------------------------------
 import mongoose from 'mongoose';
 
 const connectDB = async () => {
@@ -1371,9 +1437,9 @@ const connectDB = async () => {
 
 export default connectDB;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/middlewares/errorMiddleware.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response, NextFunction } from 'express';
 
 const errorMiddleware = (err: any, req: Request, res: Response, next: NextFunction) => {
@@ -1389,9 +1455,9 @@ const errorMiddleware = (err: any, req: Request, res: Response, next: NextFuncti
 
 export default errorMiddleware;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/middlewares/validateRequest.ts
-// ==================================================
+// --------------------------------------------------
 import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
 
@@ -1407,9 +1473,9 @@ const validateRequest = (schema: Joi.ObjectSchema) => {
 
 export default validateRequest;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/models/balanceModel.ts
-// ==================================================
+// --------------------------------------------------
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IBalance extends Document {
@@ -1426,9 +1492,9 @@ const Balance = mongoose.model<IBalance>('Balance', balanceSchema);
 
 export default Balance;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/models/stockModel.ts
-// ==================================================
+// --------------------------------------------------
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IStock extends Document {
@@ -1449,9 +1515,9 @@ const Stock = mongoose.model<IStock>('Stock', stockSchema);
 
 export default Stock;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/models/transactionModel.ts
-// ==================================================
+// --------------------------------------------------
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ITransaction extends Document {
@@ -1478,9 +1544,9 @@ const Transaction = mongoose.model<ITransaction>('Transaction', transactionSchem
 
 export default Transaction;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/models/userModel.ts
-// ==================================================
+// --------------------------------------------------
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IUser extends Document {
@@ -1517,9 +1583,9 @@ const UserSchema: Schema = new Schema({
 
 export default mongoose.model<IUser>('User', UserSchema);
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/authRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import authMiddleware from '../auth/authMiddleware';
 import { 
@@ -1545,9 +1611,9 @@ router.get('/test', (req, res) => {
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/balanceRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { getBalance, addBalance, subtractBalance } from '../controllers/balanceController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1562,9 +1628,9 @@ router.post('/subtract', authMiddleware, subtractBalance);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/chatbotRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import express from 'express';
 import { chatWithBot, getInitialMessages } from '../controllers/chatbotController';
 
@@ -1575,9 +1641,9 @@ router.get('/messages', getInitialMessages);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/lstmRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { predictStock, shouldBuy } from '../controllers/lstmController';
 
@@ -1588,9 +1654,9 @@ router.post('/should_buy', shouldBuy);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/marketRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { getMarketSummary, getMarketSummary10, getMarketNews, getStockLogo, getCurrentStockPrice, searchSymbols, getStockHistory } from '../controllers/marketController';
 
@@ -1606,9 +1672,9 @@ router.get('/history/:symbol', getStockHistory);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/portfolioRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { getPortfolioGraphData } from '../controllers/portfolioController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1619,9 +1685,9 @@ router.get('/portfolio-graph', authMiddleware, getPortfolioGraphData);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/sparkRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { runSparkBatch } from '../controllers/sparkController';
 
@@ -1633,9 +1699,9 @@ router.post('/batch', runSparkBatch);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/stockRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { getUserStocks } from '../controllers/stockController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1646,9 +1712,9 @@ router.get('/get', authMiddleware, getUserStocks);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/transactionRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { addTransaction, getTransactionHistory } from '../controllers/transactionController';
 import { getStockLogo } from '../controllers/marketController'
@@ -1662,9 +1728,9 @@ router.get('/logo-get/:symbol', getStockLogo);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/userRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { getUserProfile, updateUserProfile, uploadProfilePicture, profilePictureUpload, getUserProfilePicture } from '../controllers/userController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1686,9 +1752,9 @@ router.get('/profile-picture', authMiddleware, getUserProfilePicture);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/routes/widgetRoutes.ts
-// ==================================================
+// --------------------------------------------------
 import { Router } from 'express';
 import { getCustomWidgets } from '../controllers/widgetController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1699,9 +1765,9 @@ router.post('/custom-widgets', authMiddleware, getCustomWidgets);
 
 export default router;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/services/llamaService.ts
-// ==================================================
+// --------------------------------------------------
 import axios from 'axios';
 import dotenv from 'dotenv';
 
@@ -1776,9 +1842,9 @@ export const getChatbotResponse = async (message: string): Promise<string> => {
   }
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/services/lstmService.ts
-// ==================================================
+// --------------------------------------------------
 import axios from 'axios';
 
 const MODEL_URL = 'http://127.0.0.1:5000';
@@ -1803,9 +1869,9 @@ export const shouldBuyStock = async (symbol: string) => {
     return { prediction, lastClose: last_close, decision };
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/services/stockService.ts
-// ==================================================
+// --------------------------------------------------
 import Market from '../models/stockModel';
 import alphaVantageService from '../alphaVantageService';
 
@@ -1845,9 +1911,9 @@ class StockService {
 
 export default new StockService();
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/services/userService.ts
-// ==================================================
+// --------------------------------------------------
 import User, { IUser } from '../models/userModel';
 
 export const createUser = async (userData: IUser): Promise<IUser> => {
@@ -1871,14 +1937,14 @@ export const deleteUser = async (id: string): Promise<IUser | null> => {
   return await User.findByIdAndDelete(id);
 };
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/types/types.d.ts
-// ==================================================
+// --------------------------------------------------
 export type PyJsonValue = string | number | boolean | null | undefined | { [key: string]: PyJsonValue } | PyJsonValue[];
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./backend/src/types/express/index.d.ts
-// ==================================================
+// --------------------------------------------------
 import { JwtPayload } from 'jsonwebtoken';
 
 declare global {
@@ -1893,9 +1959,43 @@ declare global {
 
 export {};
 
-// ==================================================
+// --------------------------------------------------
+// FILE: ./frontend/package.json
+// --------------------------------------------------
+{
+  "name": "agios-trading",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "chart.js": "^4.4.2",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^4.3.0",
+    "react": "^17.0.2",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "^17.0.2",
+    "react-icons": "^5.2.1",
+    "react-router-dom": "^6.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "@types/react": "^17.0.37",
+    "@types/react-dom": "^17.0.11",
+    "@types/react-router-dom": "^5.3.3",
+    "@vitejs/plugin-react": "^1.1.4",
+    "typescript": "^4.5.2",
+    "vite": "^5.4.11"
+  }
+}
+
+// --------------------------------------------------
 // FILE: ./frontend/vite.config.ts
-// ==================================================
+// --------------------------------------------------
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -1914,9 +2014,9 @@ export default defineConfig({
     },
 });
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/App.tsx
-// ==================================================
+// --------------------------------------------------
 import React from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Login from './components/Auth/Login';
@@ -1985,9 +2085,9 @@ const App: React.FC = () => {
 
 export default App;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/AuthProvider.tsx
-// ==================================================
+// --------------------------------------------------
 import React from 'react';
 import ReactDOM from 'react-dom';
 import App from './App';
@@ -2000,9 +2100,9 @@ ReactDOM.render(
     document.getElementById('root')
 );
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/index.tsx
-// ==================================================
+// --------------------------------------------------
 // src/index.tsx
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -2016,9 +2116,9 @@ ReactDOM.render(
     document.getElementById('root')
 );
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/main.tsx
-// ==================================================
+// --------------------------------------------------
 import React from 'react';
 import ReactDOM from 'react-dom';
 import App from './App';
@@ -2031,9 +2131,9 @@ ReactDOM.render(
     document.getElementById('root')
 );
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/ForgotPassword.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ForgotPassword.css';
@@ -2117,9 +2217,9 @@ const ForgotPassword: React.FC = () => {
 
 export default ForgotPassword;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/Login.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -2186,9 +2286,9 @@ const Login: React.FC = () => {
 
 export default Login;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/Otp.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -2246,9 +2346,9 @@ const Otp: React.FC = () => {
 
 export default Otp;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/OtpReset.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from '../../config/axiosConfig'; // Ensure your Axios instance is correctly configured
@@ -2318,9 +2418,9 @@ const OtpReset: React.FC = () => {
 
 export default OtpReset;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/Register.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -2411,9 +2511,9 @@ const Register: React.FC = () => {
 
 export default Register;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/ResetPassword.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './ResetPassword.css';
@@ -2480,9 +2580,9 @@ const ResetPassword: React.FC = () => {
 
 export default ResetPassword;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/Verify.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -2541,9 +2641,9 @@ const Verify: React.FC = () => {
 
 export default Verify;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Auth/VerifyAccount.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -2577,9 +2677,9 @@ const VerifyAccount: React.FC = () => {
 
 export default VerifyAccount;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Home/Card.tsx
-// ==================================================
+// --------------------------------------------------
 import React from 'react';
 import './Card.css';
 
@@ -2602,9 +2702,9 @@ const Card: React.FC<CardProps> = ({ title, value, change, color }) => {
 
 export default Card;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Home/Chart.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
@@ -2794,9 +2894,9 @@ const Chart = () => {
 
 export default Chart;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Home/Navbar.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./Navbar.css";
@@ -2913,9 +3013,9 @@ const Navbar = () => {
 
 export default Navbar;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Home/ProfileCard.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState, useContext } from 'react';
 import axios from '../../config/axiosConfig';
 import { Link } from 'react-router-dom';
@@ -3013,9 +3113,9 @@ const ProfileCard: React.FC = () => {
 
 export default ProfileCard;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Main/PrivateRoute.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useContext } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
@@ -3034,9 +3134,9 @@ const PrivateRoute: React.FC = () => {
 
 export default PrivateRoute;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/ActivityPage.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from "react";
 import axios from "../../config/axiosConfig"; // Configurația Axios
 import Navbar from "../Home/Navbar";
@@ -3135,9 +3235,9 @@ const ActivityPage: React.FC = () => {
 
 export default ActivityPage;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Balance.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axiosConfig';
 import Navbar from '../Home/Navbar';
@@ -3257,9 +3357,9 @@ const Balance: React.FC = () => {
 
 export default Balance;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/BusinessNews.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from "react";
 import axios from "../../config/axiosConfig";
 import Navbar from "../Home/Navbar"; // Ajustăm calea
@@ -3336,9 +3436,9 @@ const BusinessNews: React.FC = () => {
 
 export default BusinessNews;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Chatbot.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '../../config/axiosConfig';
 import './Chatbot.css';
@@ -3440,9 +3540,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ isVisible, onClose }) => {
 
 export default Chatbot;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/DepositFunds.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Home/Navbar';
 import './DepositFunds.css';
@@ -3689,9 +3789,9 @@ const DepositFunds: React.FC = () => {
 
 export default DepositFunds;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Home.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from 'react';
 import axios from '../../config/axiosConfig';
 import './Home.css';
@@ -3809,9 +3909,9 @@ const Home: React.FC = () => {
 
 export default Home;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Invest1.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import Navbar from "../Home/Navbar";
@@ -4135,9 +4235,9 @@ const Invest: React.FC = () => {
 
 export default Invest;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Products.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom"; 
 import axios from "../../config/axiosConfig";
@@ -4444,9 +4544,9 @@ const StockList10: React.FC = () => {
 
 export default StockList10;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Profile.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from "react";
 import axios from "../../config/axiosConfig";
 import Navbar from "../Home/Navbar";
@@ -4660,9 +4760,9 @@ const Profile: React.FC = () => {
 
 export default Profile;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/pages/Transactions.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { useEffect, useState } from 'react';
 import axios from '../../config/axiosConfig';
 import Navbar from '../Home/Navbar';
@@ -4833,9 +4933,9 @@ const Transactions: React.FC = () => {
 
 export default Transactions;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/components/Presentation/Presentation.tsx
-// ==================================================
+// --------------------------------------------------
 import React from 'react';
 import './Presentation.css';
 
@@ -4905,9 +5005,9 @@ const TradingPresentation = () => {
 
 export default TradingPresentation;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/config/axiosConfig.ts
-// ==================================================
+// --------------------------------------------------
 import axios from 'axios';
 
 const instance = axios.create({
@@ -4926,9 +5026,9 @@ instance.interceptors.request.use((config) => {
 
 export default instance;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./frontend/src/context/AuthContext.tsx
-// ==================================================
+// --------------------------------------------------
 import React, { createContext, useState, useContext } from 'react';
 import axios from '../config/axiosConfig';
 
@@ -4965,9 +5065,9 @@ export const AuthProvider: React.FC = ({ children }) => {
 
 export default AuthContext;
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/app.py
-// ==================================================
+// --------------------------------------------------
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import main
@@ -5004,9 +5104,9 @@ def should_buy():
 if __name__ == '__main__':
     app.run(debug=True)
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/main.py
-// ==================================================
+// --------------------------------------------------
 from model.model import create_model, train_model
 from training.fetch_data import fetch_stock_data
 from training.process_data import process_data
@@ -5059,9 +5159,9 @@ def should_buy(predicted_price, last_close_price):
     else:
         return "Don't Buy"
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/model/model.py
-// ==================================================
+// --------------------------------------------------
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM
 from tensorflow.keras.optimizers import Adam
@@ -5079,9 +5179,9 @@ def create_model(input_shape):
 def train_model(model, X, y, epochs=10, batch_size=32):
     model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=1)
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/training/fetch_data.py
-// ==================================================
+// --------------------------------------------------
 import requests
 import pandas as pd
 
@@ -5110,9 +5210,9 @@ def fetch_stock_data(symbol, api_key):
     else:
         raise ValueError(f"Error fetching data for symbol {symbol}: {data.get('Note', 'Unknown error')}")
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/training/process_data.py
-// ==================================================
+// --------------------------------------------------
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
@@ -5130,9 +5230,9 @@ def process_data(df, feature='Close', time_step=60):
     Y = np.array(Y)
     return X, Y, scaler
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/training/spark_batch.py
-// ==================================================
+// --------------------------------------------------
 import argparse
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, avg
@@ -5214,9 +5314,9 @@ if __name__ == "__main__":
 
     process_batch(in_path, out_path)
 
-// ==================================================
+// --------------------------------------------------
 // FILE: ./lstm_network/training/spark_stream.py
-// ==================================================
+// --------------------------------------------------
 import argparse
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, current_timestamp
