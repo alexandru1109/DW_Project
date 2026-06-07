@@ -17,7 +17,7 @@ interface ChatbotResponse {
   done: boolean;
 }
 
-export const getChatbotResponse = async (message: string): Promise<string> => {
+export const getChatbotResponse = async (message: string, context?: string): Promise<string> => {
   if (!LLAMA_API_URL) {
     console.error('LLAMA_API_URL is not set');
     throw new Error('LLAMA_API_URL is not set');
@@ -25,15 +25,24 @@ export const getChatbotResponse = async (message: string): Promise<string> => {
 
   console.log('Sending request to chatbot service:', LLAMA_API_URL);
 
+  const messages: any[] = [];
+  
+  if (context) {
+    messages.push({
+      role: 'system',
+      content: `You are a helpful financial assistant for a Data Warehouse platform. Base your answers on the following user data context: ${context}`
+    });
+  }
+
+  messages.push({
+    role: 'user',
+    content: message
+  });
+
   try {
     const response = await axios.post(`${LLAMA_API_URL}/api/chat`, {
       model: 'llama3',
-      messages: [
-        {
-          role: 'user',
-          content: message
-        }
-      ]
+      messages: messages
     }, {
       responseType: 'stream'
     });

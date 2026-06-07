@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
-import Transaction from '../models/transactionModel';
+import { TransactionRepository } from '../dal/transactionRepository';
 import moment from 'moment';
+
+const transactionRepo = new TransactionRepository();
 
 interface PortfolioData {
   symbol: string;
@@ -53,7 +55,7 @@ export const getPortfolioGraphData = async (req: Request, res: Response) => {
     }
 
     // Fetch transactions and calculate current holdings
-    const transactions = await Transaction.find({ userId });
+    const transactions = await transactionRepo.findAllForUser(userId);
 
     const currentHoldings: { [symbol: string]: { quantity: number; totalInvested: number } } = {};
 
@@ -77,11 +79,7 @@ export const getPortfolioGraphData = async (req: Request, res: Response) => {
     );
 
     // Fetch transactions within the date range for the filtered symbols
-    const relevantTransactions = await Transaction.find({
-      userId,
-      symbol: { $in: symbols },
-      date: { $gte: startDate.toDate() },
-    });
+    const relevantTransactions = await transactionRepo.findFiltered(userId, symbols, startDate.toDate());
 
     const groupedData: { [symbol: string]: { labels: string[]; totalInvested: number[]; avgPrice: number[] } } = {};
 

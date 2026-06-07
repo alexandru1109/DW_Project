@@ -5,6 +5,9 @@ import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
+import { StockRepository } from '../dal/stockRepository';
+const stockRepo = new StockRepository();
+
 const getYahooData = async (symbol: string) => {
   try {
     const data = await yahooFinance.quote(symbol);
@@ -31,7 +34,7 @@ export const getUserStocks = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Invalid or missing user ID' });
     }
 
-    const stocks = await Stock.find({ userId }).exec();
+    const stocks = await stockRepo.findAllLatestForUser(userId);
 
     if (!stocks || stocks.length === 0) {
       return res.status(404).json({ message: 'No stocks found for this user' });

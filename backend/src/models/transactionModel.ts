@@ -8,6 +8,8 @@ export interface ITransaction extends Document {
   date: Date;
   symbol: string;
   strategy: string;
+  // Temporal/Provenance
+  dataSourceId?: mongoose.Schema.Types.ObjectId;
 }
 
 const transactionSchema: Schema = new Schema({
@@ -18,6 +20,8 @@ const transactionSchema: Schema = new Schema({
   date: { type: Date, default: Date.now },
   symbol: { type: String, required: true },
   strategy: { type: String, required: true },
+  
+  dataSourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'DataSource' }
 });
 
 const Transaction = mongoose.model<ITransaction>('Transaction', transactionSchema);
