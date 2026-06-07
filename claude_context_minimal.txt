@@ -1,252 +1,69 @@
 
-================================================================================
-FILE: ./export_for_claude.py
-================================================================================
-
+// ==================================================
+// FILE: ./export_for_claude.py
+// ==================================================
 import os
+import re
 
-# Extensiile pe care vrem sa le extragem (doar cod sursa util)
-ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.py', '.css', '.html', '.md'}
+# Cele mai stricte extensii (doar codul efectiv de logica si UI, fara styling, fara docs)
+ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.py'}
 
-# Fisiere si directoare pe care vrem sa le ignoram complet
+# Directoare ignorate (orice tine de cache, build, module)
 IGNORE_DIRS = {
     'node_modules', '.git', '__pycache__', 'venv', 'env', 
     'dist', 'build', '.idea', '.vscode', 'local_mongo',
-    'spark-warehouse', 'data', 'stream_in', 'stream_out'
-}
-IGNORE_FILES = {
-    'package-lock.json', 'saved_model.h5', 'plot.png', 'logo.webp', '.DS_Store'
+    'spark-warehouse', 'data', 'stream_in', 'stream_out',
+    'tests', '__tests__', 'test'
 }
 
-OUTPUT_FILE = 'claude_context.txt'
+OUTPUT_FILE = 'claude_context_minimal.txt'
 
 def generate_context():
+    total_files = 0
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
         for root, dirs, files in os.walk('.'):
-            # Filtram directoarele ignorate (modificam lista in-place pt os.walk)
-            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith('.')]
-            
+            # Filtram directoarele
+            dirs[:] = [d for d in dirs if d.lower() not in IGNORE_DIRS and not d.startswith('.')]
+
             for file in files:
-                if file in IGNORE_FILES:
+                # Sarim peste fisierele de test pentru a economisi tokeni masiv
+                if 'test' in file.lower() or 'spec' in file.lower():
                     continue
-                
-                # Verificam extensia (luam pachet.json, dar nu package-lock)
-                ext = os.path.splitext(file)[1]
-                if ext in ALLOWED_EXTENSIONS or file == 'package.json':
+
+                ext = os.path.splitext(file)[1].lower()
+
+                # Includem DOAR logica. Fara package.json, fara CSS, fara README.
+                if ext in ALLOWED_EXTENSIONS:
                     filepath = os.path.join(root, file)
-                    
+
                     try:
                         with open(filepath, 'r', encoding='utf-8') as infile:
                             content = infile.read()
-                            
-                            # Scriem calea fisierului ca header
-                            outfile.write(f"\n{'='*80}\n")
-                            outfile.write(f"FILE: {filepath}\n")
-                            outfile.write(f"{'='*80}\n\n")
-                            outfile.write(content)
+
+                            # Eliminam liniile goale multiple pentru a reduce numarul de tokeni
+                            content = re.sub(r'\n\s*\n', '\n\n', content)
+
+                            outfile.write(f"\n// {'='*50}\n")
+                            outfile.write(f"// FILE: {filepath}\n")
+                            outfile.write(f"// {'='*50}\n")
+                            outfile.write(content.strip())
                             outfile.write("\n")
+                            total_files += 1
                     except Exception as e:
                         print(f"Eroare la citirea {filepath}: {e}")
 
-    print(f"Gata! Fisierul {OUTPUT_FILE} a fost generat.")
-    print(f"Dimensiunea fisierului este de aproximativ {os.path.getsize(OUTPUT_FILE) // 1024} KB.")
-    print("Acum poti uploada 'claude_context.txt' in Claude, va avea un numar redus de tokeni.")
+    size_kb = os.path.getsize(OUTPUT_FILE) // 1024
+    print(f"Gata! Am procesat {total_files} fisiere esentiale.")
+    print(f"Fisierul {OUTPUT_FILE} a fost generat si curatat de whitespace inutil.")
+    print(f"Dimensiunea fisierului este MINUSCULA: {size_kb} KB.")
+    print("Incarca acest fisier 'claude_context_minimal.txt' in Claude. Va merge 100%.")
 
 if __name__ == "__main__":
     generate_context()
 
-
-================================================================================
-FILE: ./README.md
-================================================================================
-
-# Data Warehouse & Trading Analysis Platform
-
-A comprehensive Data Warehouse (DW) and Trading Analysis platform integrating a modern web stack (MERN) with advanced Machine Learning (LSTM for stock price prediction) and Big Data processing (Apache Spark).
-
-## Architecture
-
-The project is split into three main microservices/components:
-
-1. **[Frontend](./frontend/)**: User Interface built with React, Vite, and TypeScript. Handles data visualization, user authentication, and portfolio management.
-2. **[Backend](./backend/)**: RESTful API built with Node.js, Express, and TypeScript. Acts as the gateway between the database (MongoDB), frontend, and Python microservices.
-3. **[LSTM Network & Data Processing](./lstm_network/)**: Python backend utilizing TensorFlow/Keras for Deep Learning predictions and Apache Spark for large-scale data batching and streaming.
-
-## Prerequisites
-
-Make sure you have the following installed on your machine:
-- Node.js (v18+)
-- Python (v3.9+)
-- MongoDB (Running locally or accessible via URI)
-- Java (Required for Apache Spark)
-
-## Quick Start
-
-### 1. Database Setup
-Ensure MongoDB is running. The default local connection usually points to `mongodb://localhost:27017/`.
-
-### 2. Python Environment (LSTM & Spark)
-Navigate to the Python directory, install dependencies, and start the Flask app:
-```bash
-cd lstm_network
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
-```
-
-### 3. Backend (Node.js)
-Open a new terminal, install dependencies, and start the development server:
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-### 4. Frontend (React)
-Open another terminal, install dependencies, and start the Vite UI server:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-*(Alternatively, you can run the `start-all.sh` script if your environment is configured for it).*
-
-## Key Features
-- **Stock Tracking & Portfolio:** Monitor stock prices and manage portfolios.
-- **AI Chatbot Integration:** Embedded assistant powered by Llama.
-- **Predictive Analytics:** Stock price prediction using LSTM Neural Networks.
-- **Big Data Processing:** Apache Spark integration for handling large historical datasets and real-time streaming simulations.
-
-
-================================================================================
-FILE: ./backend/package.json
-================================================================================
-
-{
-  "name": "agiostrading",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "test": "jest"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "14": "^1.0.1",
-    "@tensorflow/tfjs": "^4.20.0",
-    "@tensorflow/tfjs-node": "^4.20.0",
-    "axios": "^1.7.2",
-    "bcrypt": "^5.1.1",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1",
-    "googleapis": "^137.1.0",
-    "joi": "^17.13.1",
-    "jsonwebtoken": "^9.0.2",
-    "long": "^5.2.3",
-    "md5": "^2.3.0",
-    "moment": "^2.30.1",
-    "mongodb": "^6.6.1",
-    "mongoose": "^8.3.4",
-    "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.9.13",
-    "stripe": "^15.8.0",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.0",
-    "yahoo-finance2": "^3.14.1"
-  },
-  "devDependencies": {
-    "@types/axios": "^0.14.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.12",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/md5": "^2.3.5",
-    "@types/mongoose": "^5.11.97",
-    "@types/morgan": "^1.9.9",
-    "@types/multer": "^1.4.12",
-    "@types/node": "^20.12.12",
-    "@types/nodemailer": "^6.4.15",
-    "@types/supertest": "^6.0.2",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.6",
-    "jest": "^29.7.0",
-    "supertest": "^7.0.0",
-    "ts-jest": "^29.1.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
-  }
-}
-
-
-================================================================================
-FILE: ./backend/README.md
-================================================================================
-
-# Backend API (Node.js)
-
-This is the core API server that handles business logic, user authentication, portfolio management, and acts as a bridge to the Python AI/Data Processing microservices.
-
-## Tech Stack
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **Language**: TypeScript
-- **Database**: MongoDB (via Mongoose)
-- **Authentication**: JWT (JSON Web Tokens)
-
-## Getting Started
-
-### Installation
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-2. Install the dependencies:
-   ```bash
-   npm install
-   ```
-
-### Configuration
-Create a `.env` file in the root of the `backend/` directory (if not already present). Example variables:
-```env
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/your_db_name
-JWT_SECRET=your_super_secret_key
-LLAMA_API_URL=http://localhost:11434
-```
-
-### Running the Server
-To start the server in development mode (with hot-reloading):
-```bash
-npm run dev
-```
-
-To build for production:
-```bash
-npm run build
-npm start
-```
-
-## Main Integrations
-- **Spark Jobs**: The backend can trigger local Spark processing via the `POST /api/spark/batch` endpoint using Node's `child_process`.
-- **LSTM Predictions**: Proxies prediction requests to the Python Flask application.
-- **Ollama**: Connects to the local Llama API for the AI Chatbot functionality.
-
-
-================================================================================
-FILE: ./backend/src/alphaVantageService.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/alphaVantageService.ts
+// ==================================================
 import axios from 'axios';
 
 class AlphaVantageService {
@@ -271,11 +88,9 @@ class AlphaVantageService {
 
 export default new AlphaVantageService();
 
-
-================================================================================
-FILE: ./backend/src/index.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/index.ts
+// ==================================================
 import express from 'express';
 import dotenv from 'dotenv';
 import connectDB from './db/dbConnection';
@@ -325,7 +140,6 @@ app.use((req, res) => {
   res.status(404).send('Route not found');
 });
 
-
 const PORT = process.env.PORT || 5000;
 const LLAMA_API_URL = process.env.LLAMA_API_URL;
 
@@ -339,11 +153,9 @@ app.listen(PORT, () => {
   console.log(`Connecting to Ollama API at ${LLAMA_API_URL}`);
 });
 
-
-================================================================================
-FILE: ./backend/src/auth/authController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/auth/authController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import AuthService from '../auth/authService';
 
@@ -441,10 +253,9 @@ export const confirmPasswordChange = async (req: Request, res: Response) => {
   }
 };
 
-================================================================================
-FILE: ./backend/src/auth/authMiddleware.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/auth/authMiddleware.ts
+// ==================================================
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
@@ -473,11 +284,9 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
 
 export default authMiddleware;
 
-
-================================================================================
-FILE: ./backend/src/auth/authService.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/auth/authService.ts
+// ==================================================
 import bcrypt from 'bcryptjs';
 import User, { IUser } from '../models/userModel';
 import jwt from 'jsonwebtoken';
@@ -632,7 +441,6 @@ class AuthService {
     await this.sendOtpEmail(user.email, otp); // Send OTP via email
 }
 
-  
 public async confirmPasswordChange(email: string, otp: string): Promise<void> {
   const user = await User.findOne({ email, otp, otpExpiry: { $gte: new Date() } });
   if (!user) {
@@ -654,15 +462,13 @@ public async confirmPasswordChange(email: string, otp: string): Promise<void> {
   await user.save();
 }
 
-  
 }
 
 export default new AuthService();
 
-================================================================================
-FILE: ./backend/src/controllers/balanceController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/balanceController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import Balance from '../models/balanceModel';
 
@@ -751,11 +557,9 @@ export const subtractBalance = async (req: Request, res: Response) => {
   }
 };
 
-
-================================================================================
-FILE: ./backend/src/controllers/chatbotController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/chatbotController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import { getChatbotResponse } from '../services/llamaService';
 
@@ -797,11 +601,9 @@ export const getInitialMessages = async (req: Request, res: Response) => {
   }
 };
 
-
-================================================================================
-FILE: ./backend/src/controllers/lstmController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/lstmController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import { getPrediction, shouldBuyStock } from '../services/lstmService';
 
@@ -827,11 +629,9 @@ export const shouldBuy = async (req: Request, res: Response) => {
     }
 };
 
-
-================================================================================
-FILE: ./backend/src/controllers/marketController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/marketController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import axios from 'axios';
 import YahooFinance from 'yahoo-finance2';
@@ -984,7 +784,7 @@ export const searchSymbols = async (req: Request, res: Response) => {
     try {
         const searchResults = await yahooFinance.search(query);
         const validQuotes = searchResults.quotes.filter(q => q.quoteType === 'EQUITY' || q.quoteType === 'ETF');
-        
+
         const formattedResults = validQuotes.slice(0, 10).map(q => ({
             symbol: q.symbol,
             shortname: q.shortname,
@@ -1055,12 +855,9 @@ export const getStockHistory = async (req: Request, res: Response) => {
     }
 };
 
-
-
-================================================================================
-FILE: ./backend/src/controllers/portfolioController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/portfolioController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import Transaction from '../models/transactionModel';
 import moment from 'moment';
@@ -1199,11 +996,9 @@ export const getPortfolioGraphData = async (req: Request, res: Response) => {
   }
 };
 
-
-================================================================================
-FILE: ./backend/src/controllers/sparkController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/sparkController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import { exec } from 'child_process';
 import path from 'path';
@@ -1213,7 +1008,7 @@ export const runSparkBatch = (req: Request, res: Response): void => {
     // Adjust the path to the Python executable if necessary (e.g., 'python3' or path to a venv)
     const pythonExecutable = 'python'; 
     const scriptPath = path.resolve(__dirname, '../../../../lstm_network/training/spark_batch.py');
-    
+
     console.log(`Triggering Spark Batch Job: ${pythonExecutable} ${scriptPath}`);
 
     exec(`${pythonExecutable} "${scriptPath}"`, (error, stdout, stderr) => {
@@ -1222,7 +1017,7 @@ export const runSparkBatch = (req: Request, res: Response): void => {
             res.status(500).json({ error: 'Failed to run Spark job', details: error.message, stderr });
             return;
         }
-        
+
         console.log(`Spark job stdout: ${stdout}`);
         if (stderr) {
             console.warn(`Spark job stderr: ${stderr}`);
@@ -1235,11 +1030,9 @@ export const runSparkBatch = (req: Request, res: Response): void => {
     });
 };
 
-
-================================================================================
-FILE: ./backend/src/controllers/stockController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/stockController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Stock from '../models/stockModel';
@@ -1251,7 +1044,7 @@ const getYahooData = async (symbol: string) => {
   try {
     const data = await yahooFinance.quote(symbol);
     const currentPrice = data.regularMarketPrice;
-    
+
     // Fallback logo generator
     const logo = `https://companiesmarketcap.com/img/company-logos/64/${symbol.toUpperCase()}.webp`;
 
@@ -1313,10 +1106,9 @@ export const getUserStocks = async (req: Request, res: Response) => {
   }
 };
 
-================================================================================
-FILE: ./backend/src/controllers/transactionController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/transactionController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import Transaction from '../models/transactionModel';
@@ -1428,10 +1220,9 @@ export const getTransactionHistory = async (req: Request, res: Response) => {
   }
 };
 
-================================================================================
-FILE: ./backend/src/controllers/userController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/userController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import User from '../models/userModel';
 import bcrypt from 'bcryptjs';
@@ -1532,11 +1323,9 @@ export const getUserProfilePicture = async (req: Request, res: Response) => {
   }
 };
 
-
-================================================================================
-FILE: ./backend/src/controllers/widgetController.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/controllers/widgetController.ts
+// ==================================================
 import { Request, Response } from 'express';
 import axios from 'axios';
 
@@ -1560,11 +1349,9 @@ export const getCustomWidgets = async (req: Request, res: Response) => {
     }
 };
 
-
-================================================================================
-FILE: ./backend/src/db/dbConnection.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/db/dbConnection.ts
+// ==================================================
 import mongoose from 'mongoose';
 
 const connectDB = async () => {
@@ -1584,11 +1371,9 @@ const connectDB = async () => {
 
 export default connectDB;
 
-
-================================================================================
-FILE: ./backend/src/middlewares/errorMiddleware.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/middlewares/errorMiddleware.ts
+// ==================================================
 import { Request, Response, NextFunction } from 'express';
 
 const errorMiddleware = (err: any, req: Request, res: Response, next: NextFunction) => {
@@ -1604,11 +1389,9 @@ const errorMiddleware = (err: any, req: Request, res: Response, next: NextFuncti
 
 export default errorMiddleware;
 
-
-================================================================================
-FILE: ./backend/src/middlewares/validateRequest.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/middlewares/validateRequest.ts
+// ==================================================
 import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
 
@@ -1624,11 +1407,9 @@ const validateRequest = (schema: Joi.ObjectSchema) => {
 
 export default validateRequest;
 
-
-================================================================================
-FILE: ./backend/src/models/balanceModel.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/models/balanceModel.ts
+// ==================================================
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IBalance extends Document {
@@ -1645,10 +1426,9 @@ const Balance = mongoose.model<IBalance>('Balance', balanceSchema);
 
 export default Balance;
 
-================================================================================
-FILE: ./backend/src/models/stockModel.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/models/stockModel.ts
+// ==================================================
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IStock extends Document {
@@ -1669,11 +1449,9 @@ const Stock = mongoose.model<IStock>('Stock', stockSchema);
 
 export default Stock;
 
-
-================================================================================
-FILE: ./backend/src/models/transactionModel.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/models/transactionModel.ts
+// ==================================================
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ITransaction extends Document {
@@ -1700,11 +1478,9 @@ const Transaction = mongoose.model<ITransaction>('Transaction', transactionSchem
 
 export default Transaction;
 
-
-================================================================================
-FILE: ./backend/src/models/userModel.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/models/userModel.ts
+// ==================================================
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IUser extends Document {
@@ -1741,11 +1517,9 @@ const UserSchema: Schema = new Schema({
 
 export default mongoose.model<IUser>('User', UserSchema);
 
-
-================================================================================
-FILE: ./backend/src/routes/authRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/authRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import authMiddleware from '../auth/authMiddleware';
 import { 
@@ -1768,15 +1542,12 @@ router.post('/confirm-password-change', confirmPasswordChange);
 router.get('/test', (req, res) => {
     res.send('Route /api/auth/test is working');
   });
-  
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/balanceRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/balanceRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { getBalance, addBalance, subtractBalance } from '../controllers/balanceController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1789,14 +1560,11 @@ router.post('/add', authMiddleware, addBalance);
 
 router.post('/subtract', authMiddleware, subtractBalance);
 
-
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/chatbotRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/chatbotRoutes.ts
+// ==================================================
 import express from 'express';
 import { chatWithBot, getInitialMessages } from '../controllers/chatbotController';
 
@@ -1807,11 +1575,9 @@ router.get('/messages', getInitialMessages);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/lstmRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/lstmRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { predictStock, shouldBuy } from '../controllers/lstmController';
 
@@ -1822,11 +1588,9 @@ router.post('/should_buy', shouldBuy);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/marketRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/marketRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { getMarketSummary, getMarketSummary10, getMarketNews, getStockLogo, getCurrentStockPrice, searchSymbols, getStockHistory } from '../controllers/marketController';
 
@@ -1842,11 +1606,9 @@ router.get('/history/:symbol', getStockHistory);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/portfolioRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/portfolioRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { getPortfolioGraphData } from '../controllers/portfolioController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1857,11 +1619,9 @@ router.get('/portfolio-graph', authMiddleware, getPortfolioGraphData);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/sparkRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/sparkRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { runSparkBatch } from '../controllers/sparkController';
 
@@ -1873,11 +1633,9 @@ router.post('/batch', runSparkBatch);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/stockRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/stockRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { getUserStocks } from '../controllers/stockController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1888,10 +1646,9 @@ router.get('/get', authMiddleware, getUserStocks);
 
 export default router;
 
-================================================================================
-FILE: ./backend/src/routes/transactionRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/transactionRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { addTransaction, getTransactionHistory } from '../controllers/transactionController';
 import { getStockLogo } from '../controllers/marketController'
@@ -1905,11 +1662,9 @@ router.get('/logo-get/:symbol', getStockLogo);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/userRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/userRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { getUserProfile, updateUserProfile, uploadProfilePicture, profilePictureUpload, getUserProfilePicture } from '../controllers/userController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1928,14 +1683,12 @@ router.post(
 );
 
 router.get('/profile-picture', authMiddleware, getUserProfilePicture);
-  
+
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/routes/widgetRoutes.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/routes/widgetRoutes.ts
+// ==================================================
 import { Router } from 'express';
 import { getCustomWidgets } from '../controllers/widgetController';
 import authMiddleware from '../auth/authMiddleware';
@@ -1946,11 +1699,9 @@ router.post('/custom-widgets', authMiddleware, getCustomWidgets);
 
 export default router;
 
-
-================================================================================
-FILE: ./backend/src/services/llamaService.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/services/llamaService.ts
+// ==================================================
 import axios from 'axios';
 import dotenv from 'dotenv';
 
@@ -2025,11 +1776,9 @@ export const getChatbotResponse = async (message: string): Promise<string> => {
   }
 };
 
-
-================================================================================
-FILE: ./backend/src/services/lstmService.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/services/lstmService.ts
+// ==================================================
 import axios from 'axios';
 
 const MODEL_URL = 'http://127.0.0.1:5000';
@@ -2054,11 +1803,9 @@ export const shouldBuyStock = async (symbol: string) => {
     return { prediction, lastClose: last_close, decision };
 };
 
-
-================================================================================
-FILE: ./backend/src/services/stockService.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/services/stockService.ts
+// ==================================================
 import Market from '../models/stockModel';
 import alphaVantageService from '../alphaVantageService';
 
@@ -2068,7 +1815,7 @@ class StockService {
     if (!stock) {
       const apiData = await alphaVantageService.getStockData(symbol);
       const indicators = await alphaVantageService.getStockIndicators(symbol);
-      
+
       const newStockData = {
         symbol: symbol,
         history: apiData['Time Series (Daily)'], 
@@ -2098,11 +1845,9 @@ class StockService {
 
 export default new StockService();
 
-
-================================================================================
-FILE: ./backend/src/services/userService.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/services/userService.ts
+// ==================================================
 import User, { IUser } from '../models/userModel';
 
 export const createUser = async (userData: IUser): Promise<IUser> => {
@@ -2126,737 +1871,14 @@ export const deleteUser = async (id: string): Promise<IUser | null> => {
   return await User.findByIdAndDelete(id);
 };
 
-
-================================================================================
-FILE: ./backend/src/tests/authController.test.ts
-================================================================================
-
-import request from 'supertest';
-import express from 'express';
-import { register, login } from '../auth/authController';
-import AuthService from '../auth/authService';
-
-jest.mock('../auth/authService');
-
-const app = express();
-app.use(express.json());
-app.post('/api/auth/register', register);
-app.post('/api/auth/login', login);
-
-describe('Auth Controller', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('POST /api/auth/register', () => {
-    it('should register a user successfully', async () => {
-      const mockUser = {
-        name: 'John Doe',
-        email: 'john@example.com',
-        passHash: 'hashedpassword',
-        role: 'user',
-        strategy: 'strategy1'
-      };
-
-      (AuthService.register as jest.Mock).mockResolvedValue(mockUser);
-
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'John Doe',
-          email: 'john@example.com',
-          password: 'password',
-          role: 'user',
-          strategy: 'strategy1'
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body.user).toEqual(mockUser);
-      expect(response.body.message).toBe('User registered successfully');
-    });
-
-    it('should return 400 if user already exists', async () => {
-      (AuthService.register as jest.Mock).mockRejectedValue(new Error('User already exists'));
-
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'John Doe',
-          email: 'john@example.com',
-          password: 'password',
-          role: 'user',
-          strategy: 'strategy1'
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.text).toBe('User already exists');
-    });
-
-    it('should return 500 if there is an error', async () => {
-      (AuthService.register as jest.Mock).mockRejectedValue(new Error('Database error'));
-
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'John Doe',
-          email: 'john@example.com',
-          password: 'password',
-          role: 'user',
-          strategy: 'strategy1'
-        });
-
-      expect(response.status).toBe(500);
-      expect(response.text).toBe('Database error');
-    });
-  });
-
-  describe('POST /api/auth/login', () => {
-    it('should login a user successfully', async () => {
-      const mockToken = 'fake-jwt-token';
-      (AuthService.login as jest.Mock).mockResolvedValue(mockToken);
-
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'john@example.com',
-          password: 'password'
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body.token).toBe(mockToken);
-      expect(response.body.message).toBe('User logged in successfully');
-    });
-
-    it('should return 400 if login fails', async () => {
-      (AuthService.login as jest.Mock).mockRejectedValue(new Error('Invalid email or password'));
-
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'john@example.com',
-          password: 'wrongpassword'
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.text).toBe('Invalid email or password');
-    });
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/authRoutes.test.ts
-================================================================================
-
-import request from 'supertest';
-import express from 'express';
-import authRoutes from '../routes/authRoutes';
-import * as authController from '../auth/authController';
-
-const app = express();
-app.use(express.json());
-app.use('/api/auth', authRoutes);
-
-jest.mock('../auth/authController');
-
-describe('Auth Routes', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('POST /api/auth/register', () => {
-    it('should register a user successfully', async () => {
-      (authController.register as jest.Mock).mockImplementation((req, res) => {
-        res.status(201).json({ message: 'User registered' });
-      });
-
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({ name: 'John Doe', email: 'john@example.com', password: 'password', role: 'user', strategy: 'strategy1' });
-
-      expect(response.status).toBe(201);
-      expect(response.body.message).toBe('User registered');
-    });
-
-    it('should return 400 if user already exists', async () => {
-      (authController.register as jest.Mock).mockImplementation((req, res) => {
-        res.status(400).json({ message: 'User already exists' });
-      });
-
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({ name: 'John Doe', email: 'john@example.com', password: 'password', role: 'user', strategy: 'strategy1' });
-
-      expect(response.status).toBe(400);
-      expect(response.body.message).toBe('User already exists');
-    });
-  });
-
-  describe('POST /api/auth/login', () => {
-    it('should login a user successfully', async () => {
-      (authController.login as jest.Mock).mockImplementation((req, res) => {
-        res.status(200).json({ token: 'fake-jwt-token', message: 'User logged in successfully' });
-      });
-
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({ email: 'john@example.com', password: 'password' });
-
-      expect(response.status).toBe(200);
-      expect(response.body.token).toBe('fake-jwt-token');
-      expect(response.body.message).toBe('User logged in successfully');
-    });
-
-    it('should return 400 for invalid email or password', async () => {
-      (authController.login as jest.Mock).mockImplementation((req, res) => {
-        res.status(400).json({ message: 'Invalid email or password' });
-      });
-
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({ email: 'john@example.com', password: 'wrongpassword' });
-
-      expect(response.status).toBe(400);
-      expect(response.body.message).toBe('Invalid email or password');
-    });
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/chatbotController.test.ts
-================================================================================
-
-import request from 'supertest';
-import express from 'express';
-import { chatWithBot } from '../controllers/chatbotController';
-import { getChatbotResponse } from '../services/llamaService';
-
-// Creează o aplicație Express pentru testare
-const app = express();
-app.use(express.json());
-app.post('/api/chat', chatWithBot);
-
-// Mock-uiește funcția getChatbotResponse
-jest.mock('../services/llamaService');
-
-describe('Chatbot Controller', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should return 200 and bot response when message is provided', async () => {
-    // Setează răspunsul mock pentru getChatbotResponse
-    const mockResponse = 'Hello, this is a bot response';
-    (getChatbotResponse as jest.Mock).mockResolvedValue(mockResponse);
-
-    try {
-      // Trimite o cerere POST către endpoint-ul de chat
-      const response = await request(app)
-        .post('/api/chat')
-        .send({ message: 'Hello bot' });
-
-      // Verifică răspunsul
-      expect(response.status).toBe(200);
-      expect(response.body.response).toBe(mockResponse);
-    } catch (error) {
-      fail('Unexpected error occurred: ' + (error as Error).message);
-    }
-  });
-
-  it('should return 400 when message is not provided', async () => {
-    try {
-      // Trimite o cerere POST fără mesaj
-      const response = await request(app)
-        .post('/api/chat')
-        .send({});
-
-      // Verifică răspunsul
-      expect(response.status).toBe(400);
-      expect(response.body.message).toBe('Message is required');
-    } catch (error) {
-      fail('Unexpected error occurred: ' + (error as Error).message);
-    }
-  });
-
-  it('should return 500 when there is an error with the chatbot service', async () => {
-    // Setează răspunsul mock pentru getChatbotResponse să arunce o eroare
-    (getChatbotResponse as jest.Mock).mockRejectedValue(new Error('Service error'));
-
-    try {
-      // Trimite o cerere POST cu un mesaj
-      const response = await request(app)
-        .post('/api/chat')
-        .send({ message: 'Hello bot' });
-
-      // Verifică răspunsul
-      expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Error chatting with bot');
-    } catch (error) {
-      fail('Unexpected error occurred: ' + (error as Error).message);
-    }
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/llamaService.test.ts
-================================================================================
-
-import axios from 'axios';
-import { getChatbotResponse } from '../services/llamaService';
-
-jest.mock('axios');
-
-describe('Llama Service Response', () => {
-  const LLAMA_API_URL = process.env.LLAMA_API_URL || 'http://localhost:11434';
-
-  it('should connect to the Ollama API and return chatbot response', async () => {
-    const mockResponse = {
-      status: 200,
-      data: {
-        text: 'Hello, this is a bot response'
-      }
-    };
-    (axios.post as jest.Mock).mockResolvedValue(mockResponse);
-
-    try {
-      const response = await getChatbotResponse('Hello bot');
-
-      expect(response).toEqual(mockResponse.data.text);
-      expect(axios.post).toHaveBeenCalledWith(`${LLAMA_API_URL}/api/generate`, {
-        model: 'llama3',
-        prompt: 'Hello bot',
-        options: {
-          num_ctx: 4096
-        }
-      });
-    } catch (error) {
-      fail('Failed to connect to Ollama API');
-    }
-  });
-
-  it('should throw an error if the request fails', async () => {
-    const mockError = new Error('Service error');
-    (axios.post as jest.Mock).mockRejectedValue(mockError);
-
-    await expect(getChatbotResponse('Hello bot')).rejects.toThrow('Failed to fetch chatbot response');
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/stockRoutes.test.ts
-================================================================================
-
-import request from 'supertest';
-import express from 'express';
-import mongoose from 'mongoose';
-import stockRoutes from '../routes/stockRoutes';
-import Market from '../models/stockModel';
-import alphaVantageService from '../alphaVantageService';
-
-const app = express();
-app.use(express.json());
-app.use('/api/stocks', stockRoutes);
-
-jest.mock('../alphaVantageService');
-
-describe('Stock Routes', () => {
-  let server: any;
-  const mockStock = {
-    symbol: 'AAPL',
-    history: [{ date: '2023-01-01', open: 150, high: 155, low: 148, close: 153, volume: 100000 }],
-    indicators: { sma: 150, ema: 152 },
-  };
-
-  beforeAll(async () => {
-    const url = process.env.MONGODB_URI || `mongodb://127.0.0.1/stock_test`;
-    await mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true } as mongoose.ConnectOptions);
-    server = app.listen(5001);
-  }, 30000); // Increase the timeout to 30 seconds
-
-  afterAll(async () => {
-    await mongoose.connection.dropDatabase();
-    await mongoose.connection.close();
-    server.close();
-  }, 30000); // Increase the timeout to 30 seconds
-
-  afterEach(async () => {
-    await Market.deleteMany({});
-    jest.clearAllMocks();
-  });
-
-  describe('POST /api/stocks', () => {
-    it('should create new stock data', async () => {
-      const response = await request(app)
-        .post('/api/stocks')
-        .send(mockStock);
-
-      expect(response.status).toBe(201);
-      expect(response.body.symbol).toBe(mockStock.symbol);
-    }, 30000); // Increase the timeout to 30 seconds
-
-    it('should return 500 if there is an error creating stock data', async () => {
-      const response = await request(app)
-        .post('/api/stocks')
-        .send({});
-
-      expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Error creating stock data');
-    }, 30000); // Increase the timeout to 30 seconds
-  });
-
-  describe('GET /api/stocks/:symbol', () => {
-    it('should fetch stock data by symbol from database', async () => {
-      await Market.create(mockStock);
-
-      const response = await request(app).get(`/api/stocks/${mockStock.symbol}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.symbol).toBe(mockStock.symbol);
-    }, 30000); // Increase the timeout to 30 seconds
-
-    it('should fetch stock data by symbol from Alpha Vantage if not in database', async () => {
-      (alphaVantageService.getStockData as jest.Mock).mockResolvedValue(mockStock);
-
-      const response = await request(app).get(`/api/stocks/${mockStock.symbol}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.symbol).toBe(mockStock.symbol);
-    }, 30000); // Increase the timeout to 30 seconds
-
-    it('should return 500 if stock data is not found', async () => {
-      (alphaVantageService.getStockData as jest.Mock).mockRejectedValue(new Error('Stock not found'));
-
-      const response = await request(app).get('/api/stocks/INVALID');
-
-      expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Error fetching stock data');
-    }, 30000); // Increase the timeout to 30 seconds
-  });
-
-  describe('PUT /api/stocks/:symbol', () => {
-    it('should update stock data by symbol', async () => {
-      await Market.create(mockStock);
-      const updatedData = { ...mockStock, history: [...mockStock.history, { date: '2023-01-02', open: 160, high: 165, low: 158, close: 163, volume: 120000 }] };
-
-      const response = await request(app)
-        .put(`/api/stocks/${mockStock.symbol}`)
-        .send(updatedData);
-
-      expect(response.status).toBe(200);
-      expect(response.body.history).toHaveLength(2);
-    }, 30000); // Increase the timeout to 30 seconds
-
-    it('should return 500 if there is an error updating stock data', async () => {
-      const response = await request(app)
-        .put('/api/stocks/INVALID')
-        .send({ history: ['updated'] });
-
-      expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Error updating stock data');
-    }, 30000); // Increase the timeout to 30 seconds
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/transactionRoutes.test.ts
-================================================================================
-
-import request from 'supertest';
-import express from 'express';
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-import transactionRoutes from '../routes/transactionRoutes';
-import Transaction from '../models/transactionModel';
-
-// Load environment variables
-dotenv.config();
-
-const app = express();
-app.use(express.json());
-app.use('/api/transactions', transactionRoutes);
-
-// Properly mock the authentication middleware
-jest.mock('../auth/authMiddleware', () => jest.fn((req, res, next) => {
-  if (req.headers.authorization) {
-    (req as any).user = { id: '605c72ef2f7992313c444444' }; // Mock user ID
-    next();
-  } else {
-    res.status(401).json({ message: 'User not authenticated' });
-  }
-}));
-
-describe('Transaction Routes', () => {
-  beforeAll(async () => {
-    const url = process.env.MONGODB_URI || 'mongodb://127.0.0.1/transactions_test';
-    await mongoose.connect(url, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    } as mongoose.ConnectOptions);
-  });
-
-  afterAll(async () => {
-    await mongoose.connection.dropDatabase();
-    await mongoose.connection.close();
-  });
-
-  afterEach(async () => {
-    await Transaction.deleteMany({});
-  });
-
-  const mockTransaction = {
-    userId: new mongoose.Types.ObjectId('605c72ef2f7992313c444444'),
-    type: 'buy',
-    quantity: 10,
-    price: 150,
-    date: new Date(),
-    symbol: 'AAPL',
-    strategy: 'strategy1',
-  };
-
-  describe('POST /api/transactions', () => {
-    it('should add a new transaction', async () => {
-      const response = await request(app)
-        .post('/api/transactions')
-        .set('Authorization', 'Bearer mockToken')
-        .send(mockTransaction);
-
-      console.log('POST Response:', response.body);
-
-      expect(response.status).toBe(201);
-      expect(response.body.transaction).toMatchObject({
-        ...mockTransaction,
-        date: mockTransaction.date.toISOString(),
-        userId: '605c72ef2f7992313c444444'
-      });
-      expect(response.body.message).toBe('Transaction added successfully');
-    });
-
-    it('should return 401 if user is not authenticated', async () => {
-      const response = await request(app)
-        .post('/api/transactions')
-        .send(mockTransaction);
-
-      console.log('POST Response (not authenticated):', response.body);
-
-      expect(response.status).toBe(401);
-      expect(response.body.message).toBe('User not authenticated');
-    });
-  });
-
-  describe('GET /api/transactions', () => {
-    it('should fetch transaction history', async () => {
-      const transaction = new Transaction(mockTransaction);
-      await transaction.save();
-
-      const response = await request(app)
-        .get('/api/transactions')
-        .set('Authorization', 'Bearer mockToken');
-
-      console.log('GET Response:', response.body);
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0]).toMatchObject({
-        ...mockTransaction,
-        date: mockTransaction.date.toISOString(),
-        userId: '605c72ef2f7992313c444444'
-      });
-    });
-
-    it('should return 401 if user is not authenticated', async () => {
-      const response = await request(app)
-        .get('/api/transactions');
-
-      console.log('GET Response (not authenticated):', response.body);
-
-      expect(response.status).toBe(401);
-      expect(response.body.message).toBe('User not authenticated');
-    });
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/userRoutes.test.ts
-================================================================================
-
-import request from 'supertest';
-import express from 'express';
-import userRoutes from '../routes/userRoutes';
-import * as userController from '../controllers/userController';
-import authMiddleware from '../auth/authMiddleware';
-
-const app = express();
-app.use(express.json());
-app.use('/api/users', userRoutes);
-
-jest.mock('../controllers/userController');
-jest.mock('../auth/authMiddleware', () => jest.fn((req, res, next) => {
-  (req as any).user = { _id: '1' }; // Mock user ID
-  next();
-}));
-
-describe('User Routes', () => {
-  const mockUser = {
-    _id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    passHash: 'hashedpassword',
-    role: 'user',
-    strategy: 'strategy1',
-  };
-
-  describe('PUT /api/users/profile', () => {
-    it('should update user profile', async () => {
-      (userController.updateUserProfile as jest.Mock).mockImplementation((req, res) => {
-        res.status(200).json(mockUser);
-      });
-
-      const response = await request(app)
-        .put('/api/users/profile')
-        .send({ name: 'Jane Doe' });
-
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockUser);
-    });
-
-    it('should return 401 if user is not authenticated', async () => {
-      (authMiddleware as jest.Mock).mockImplementationOnce((req, res, next) => {
-        res.status(401).json({ message: 'User not authenticated' });
-      });
-
-      const response = await request(app)
-        .put('/api/users/profile')
-        .send({ name: 'Jane Doe' });
-
-      expect(response.status).toBe(401);
-      expect(response.body.message).toBe('User not authenticated');
-    });
-
-    it('should return 404 if user is not found', async () => {
-      (userController.updateUserProfile as jest.Mock).mockImplementation((req, res) => {
-        res.status(404).json({ message: 'User not found' });
-      });
-
-      const response = await request(app)
-        .put('/api/users/profile')
-        .send({ name: 'Jane Doe' });
-
-      expect(response.status).toBe(404);
-      expect(response.body.message).toBe('User not found');
-    });
-
-    it('should return 500 if there is an error updating profile', async () => {
-      (userController.updateUserProfile as jest.Mock).mockImplementation((req, res) => {
-        res.status(500).json({ message: 'Error updating user profile' });
-      });
-
-      const response = await request(app)
-        .put('/api/users/profile')
-        .send({ name: 'Jane Doe' });
-
-      expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Error updating user profile');
-    });
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/tests/userService.test.ts
-================================================================================
-
-import { createUser, getAllUsers, getUserById, updateUser, deleteUser } from '../services/userService';
-import User, { IUser } from '../models/userModel';
-
-jest.mock('../models/userModel'); 
-
-describe('User Service', () => {
-  const mockUser: Partial<IUser> = {
-    _id: '1',
-    name: 'testuser',
-    email: 'test@example.com',
-    passHash: 'hashedpassword',
-    role: 'user',
-    strategy: 'strategy1',
-  };
-
-  describe('createUser', () => {
-    it('should create a new user', async () => {
-      (User.prototype.save as jest.Mock).mockResolvedValue(mockUser);
-      const newUser = await createUser(mockUser as IUser);
-      expect(newUser).toEqual(mockUser);
-    });
-  });
-
-  describe('getAllUsers', () => {
-    it('should fetch all users', async () => {
-      (User.find as jest.Mock).mockResolvedValue([mockUser]);
-      const users = await getAllUsers();
-      expect(users).toEqual([mockUser]);
-    });
-  });
-
-  describe('getUserById', () => {
-    it('should fetch a user by id', async () => {
-      (User.findById as jest.Mock).mockResolvedValue(mockUser);
-      const user = await getUserById('1');
-      expect(user).toEqual(mockUser);
-    });
-
-    it('should return null if user not found', async () => {
-      (User.findById as jest.Mock).mockResolvedValue(null);
-      const user = await getUserById('1');
-      expect(user).toBeNull();
-    });
-  });
-
-  describe('updateUser', () => {
-    it('should update a user', async () => {
-      const updatedUser = { ...mockUser, name: 'updatedUser' };
-      (User.findByIdAndUpdate as jest.Mock).mockResolvedValue(updatedUser);
-      const user = await updateUser('1', { name: 'updatedUser' });
-      expect(user).toEqual(updatedUser);
-    });
-
-    it('should return null if user not found', async () => {
-      (User.findByIdAndUpdate as jest.Mock).mockResolvedValue(null);
-      const user = await updateUser('1', { name: 'updatedUser' });
-      expect(user).toBeNull();
-    });
-  });
-
-  describe('deleteUser', () => {
-    it('should delete a user', async () => {
-      (User.findByIdAndDelete as jest.Mock).mockResolvedValue(mockUser);
-      const user = await deleteUser('1');
-      expect(user).toEqual(mockUser);
-    });
-
-    it('should return null if user not found', async () => {
-      (User.findByIdAndDelete as jest.Mock).mockResolvedValue(null);
-      const user = await deleteUser('1');
-      expect(user).toBeNull();
-    });
-  });
-});
-
-
-================================================================================
-FILE: ./backend/src/types/types.d.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/types/types.d.ts
+// ==================================================
 export type PyJsonValue = string | number | boolean | null | undefined | { [key: string]: PyJsonValue } | PyJsonValue[];
 
-
-================================================================================
-FILE: ./backend/src/types/express/index.d.ts
-================================================================================
-
+// ==================================================
+// FILE: ./backend/src/types/express/index.d.ts
+// ==================================================
 import { JwtPayload } from 'jsonwebtoken';
 
 declare global {
@@ -2871,102 +1893,9 @@ declare global {
 
 export {};
 
-
-================================================================================
-FILE: ./frontend/package.json
-================================================================================
-
-{
-  "name": "agios-trading",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "start": "vite",
-    "build": "vite build",
-    "serve": "vite preview"
-  },
-  "dependencies": {
-    "axios": "^1.7.9",
-    "chart.js": "^4.4.2",
-    "chartjs-adapter-date-fns": "^3.0.0",
-    "date-fns": "^4.3.0",
-    "react": "^17.0.2",
-    "react-chartjs-2": "^5.2.0",
-    "react-dom": "^17.0.2",
-    "react-icons": "^5.2.1",
-    "react-router-dom": "^6.23.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.6",
-    "@types/react": "^17.0.37",
-    "@types/react-dom": "^17.0.11",
-    "@types/react-router-dom": "^5.3.3",
-    "@vitejs/plugin-react": "^1.1.4",
-    "typescript": "^4.5.2",
-    "vite": "^5.4.11"
-  }
-}
-
-
-================================================================================
-FILE: ./frontend/README.md
-================================================================================
-
-# Frontend Web Application
-
-The user interface for the Trading and Data Warehouse platform, designed for high performance and a rich aesthetic.
-
-## Tech Stack
-- **Framework**: React
-- **Build Tool**: Vite
-- **Language**: TypeScript
-- **Styling**: Vanilla CSS (modularized per component)
-- **HTTP Client**: Axios
-
-## Getting Started
-
-### Installation
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-2. Install the dependencies:
-   ```bash
-   npm install
-   ```
-
-### Configuration
-Ensure your backend URL is properly configured. If needed, create a `.env` file to override the default API endpoint:
-```env
-VITE_API_BASE_URL=http://localhost:5000/api
-```
-
-### Running the Application
-To start the Vite development server with Hot Module Replacement (HMR):
-```bash
-npm run dev
-```
-
-To build the application for production:
-```bash
-npm run build
-```
-
-To preview the production build locally:
-```bash
-npm run preview
-```
-
-## Project Structure highlights
-- `/src/components`: Reusable UI components categorized by feature (Auth, Home, Main).
-- `/src/pages`: Top-level page components representing different views (Balance, Chatbot, Transactions, etc.).
-- `/src/context`: React Context providers (e.g., `AuthContext.tsx`) for global state management.
-
-
-================================================================================
-FILE: ./frontend/vite.config.ts
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/vite.config.ts
+// ==================================================
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -2985,28 +1914,9 @@ export default defineConfig({
     },
 });
 
-
-================================================================================
-FILE: ./frontend/src/App.css
-================================================================================
-
-/* src/App.css */
-body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #0f172a !important;
-}
-
-code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-}
-
-================================================================================
-FILE: ./frontend/src/App.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/App.tsx
+// ==================================================
 import React from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Login from './components/Auth/Login';
@@ -3069,18 +1979,15 @@ const router = createBrowserRouter(routes, {
   },
 });
 
-
 const App: React.FC = () => {
   return <RouterProvider router={router} />;
 };
 
 export default App;
 
-
-================================================================================
-FILE: ./frontend/src/AuthProvider.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/AuthProvider.tsx
+// ==================================================
 import React from 'react';
 import ReactDOM from 'react-dom';
 import App from './App';
@@ -3093,45 +2000,9 @@ ReactDOM.render(
     document.getElementById('root')
 );
 
-
-================================================================================
-FILE: ./frontend/src/index.css
-================================================================================
-
-body {
-    background-color: #0f172a !important;
-    margin: 0; /* Remove default margin */
-    padding: 0; /* Remove default padding */
-    box-sizing: border-box; /* Ensure consistent box model */
-    color: #f8fafc; /* Optional: Default text color */
-    font-family: 'Arial', sans-serif; /* Optional: Set default font */
-  }
-  
-
-================================================================================
-FILE: ./frontend/src/index.html
-================================================================================
-
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>React App</title>
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="./main.tsx"></script>
-</body>
-
-</html>
-
-================================================================================
-FILE: ./frontend/src/index.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/index.tsx
+// ==================================================
 // src/index.tsx
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -3145,11 +2016,9 @@ ReactDOM.render(
     document.getElementById('root')
 );
 
-
-================================================================================
-FILE: ./frontend/src/main.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/main.tsx
+// ==================================================
 import React from 'react';
 import ReactDOM from 'react-dom';
 import App from './App';
@@ -3162,138 +2031,9 @@ ReactDOM.render(
     document.getElementById('root')
 );
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/ForgotPassword.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.forgot-password-container {
-    display: flex;
-    flex-wrap: wrap; /* Rearanjare pe ecrane mici */
-    height: 100vh;
-}
-
-.left-panel {
-    flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către imaginea ta */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Asigură că partea dreaptă ocupă întreaga lățime pe mobil */
-}
-
-.forgot-password-card {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.forgot-password-card h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.forgot-password-card form {
-    display: flex;
-    flex-direction: column;
-}
-
-.forgot-password-card input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 20px;
-    border: none;
-    border-radius: 5px;
-    background: #e5e7e6;
-    color: #000;
-}
-
-.forgot-password-card input::placeholder {
-    color: #a9a9a9;
-}
-
-.forgot-password-card button {
-    width: 100%;
-    padding: 10px;
-    background: #e5e7e6;
-    color: #003554;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.forgot-password-card button:hover {
-    background: #d9d9d9;
-}
-
-.forgot-password-card p {
-    color: #fff;
-    margin-top: 20px;
-}
-
-.forgot-password-card p a {
-    color: #e5e7e6;
-    text-decoration: none;
-}
-
-.forgot-password-card p a:hover {
-    text-decoration: underline;
-}
-
-.contact-support {
-    margin-top: 20px;
-    text-align: center;
-    color: #e5e7e6;
-}
-
-.contact-support p {
-    margin: 5px 0;
-}
-
-/* Responsive: Ascundem partea stângă pe ecrane mici */
-@media (max-width: 768px) {
-    .left-panel {
-        display: none;
-    }
-
-    .right-panel {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/ForgotPassword.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/ForgotPassword.tsx
+// ==================================================
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ForgotPassword.css';
@@ -3377,136 +2117,9 @@ const ForgotPassword: React.FC = () => {
 
 export default ForgotPassword;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Login.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.login-container {
-    display: flex;
-    flex-wrap: wrap; /* Asigură că elementele se rearanjează pe ecrane mici */
-    height: 100vh;
-}
-
-.left-panel {
-    flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către poza ta */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Asigură că partea dreaptă ocupă toată lățimea pe mobil */
-}
-
-/* Card de login */
-.login-card1 {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.login-card1 h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.error-message1 {
-    background: #ff4d4f;
-    color: #e5e7e6;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-}
-
-.login-card1 form {
-    display: flex;
-    flex-direction: column;
-}
-
-.login-card1 input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 20px;
-    border: none;
-    border-radius: 5px;
-    background: #e5e7e6;
-    color: #000;
-}
-
-.login-card1 input::placeholder {
-    color: #a9a9a9;
-}
-
-.login-card1 button {
-    width: 100%;
-    padding: 10px;
-    background: #e5e7e6;
-    color: #000;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-.login-card1 button:hover {
-    background: #d9d9d9;
-}
-
-.login-card1 p {
-    color: #fff;
-    margin-top: 20px;
-}
-
-.login-card1 p a {
-    color: #e5e7e6;
-    text-decoration: none;
-}
-
-.login-card1 p a:hover {
-    text-decoration: underline;
-}
-
-/* Responsive: Ascundem partea stângă pe ecrane mici */
-@media (max-width: 768px) {
-    .left-panel {
-        display: none; /* Ascundem partea stângă complet */
-    }
-
-    .right-panel {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Login.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/Login.tsx
+// ==================================================
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -3568,169 +2181,14 @@ const Login: React.FC = () => {
             </div>
         </div>
 
-
     );
 };
 
 export default Login;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Otp.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.otp-container2 {
-    display: flex;
-    flex-wrap: wrap;
-    height: 100vh;
-}
-
-.left-panel2 {
-    flex: 1;
-    background-image: url('logo.webp'); /* Replace with your image path */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel2 {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Ensures full width on smaller screens */
-}
-
-.otp-card2 {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.otp-card2 h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.error-message {
-    background: #ff4d4f;
-    color: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-}
-
-.otp-card2 form {
-    display: flex;
-    flex-direction: column;
-}
-
-.otp-card2 input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 20px;
-    border: none;
-    border-radius: 5px;
-    background: #e5e7e6;
-    color: #000;
-}
-
-.otp-card2 input::placeholder {
-    color: #a9a9a9;
-}
-
-.otp-card2 button {
-    width: 100%;
-    padding: 10px;
-    background: #e5e7e6;
-    color: #003554;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.otp-card2 button:hover {
-    background: #d9d9d9;
-}
-
-.retry-button {
-    width: 100%;
-    padding: 10px;
-    background: #ff9800;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-    margin-top: 10px;
-}
-
-.retry-button:hover {
-    background: #fb8c00;
-}
-
-/* Responsive Styles */
-@media (max-width: 768px) {
-    .left-panel2 {
-        display: none; /* Hide the left panel entirely on smaller screens */
-    }
-
-    .right-panel2 {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-        padding: 20px; /* Add padding for better layout */
-    }
-
-    .otp-card2 {
-        padding: 20px; /* Reduce padding on smaller screens */
-        max-width: 90%; /* Adjust width for smaller screens */
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    }
-
-    .otp-card2 h2 {
-        font-size: 1.5rem; /* Adjust font size */
-    }
-
-    .otp-card2 input {
-        padding: 8px; /* Reduce padding for inputs */
-        font-size: 14px; /* Adjust font size for smaller screens */
-    }
-
-    .otp-card2 button {
-        padding: 8px; /* Reduce padding for buttons */
-        font-size: 14px; /* Adjust font size */
-    }
-
-    .error-message {
-        font-size: 14px; /* Adjust error message font size */
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Otp.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/Otp.tsx
+// ==================================================
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -3788,139 +2246,9 @@ const Otp: React.FC = () => {
 
 export default Otp;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/OtpReset.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.otp-container1 {
-    display: flex;
-    flex-wrap: wrap;
-    height: 100vh;
-}
-
-.left-panel1 {
-    flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către poza ta */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel1 {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Asigură că partea dreaptă ocupă toată lățimea pe mobil */
-}
-
-/* Card OTP */
-.otp-card1 {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.otp-card1 h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.error-message {
-    background: #ff4d4f;
-    color: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-}
-
-.otp-card1 form {
-    display: flex;
-    flex-direction: column;
-}
-
-.otp-card1 input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 20px;
-    border: none;
-    border-radius: 5px;
-    background: #e5e7e6;
-    color: #000;
-}
-
-.otp-card1 input::placeholder {
-    color: #a9a9a9;
-}
-
-.otp-card1 button {
-    width: 100%;
-    padding: 10px;
-    background: #e5e7e6;
-    color: #003554;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.otp-card1 button:hover {
-    background: #d9d9d9;
-}
-
-.retry-button {
-    width: 100%;
-    padding: 10px;
-    background: #ff9800;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-    margin-top: 10px;
-}
-
-.retry-button:hover {
-    background: #fb8c00;
-}
-
-/* Responsive: Ascundem partea stângă pe ecrane mici */
-@media (max-width: 768px) {
-    .left-panel {
-        display: none;
-    }
-
-    .right-panel {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/OtpReset.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/OtpReset.tsx
+// ==================================================
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from '../../config/axiosConfig'; // Ensure your Axios instance is correctly configured
@@ -3990,134 +2318,9 @@ const OtpReset: React.FC = () => {
 
 export default OtpReset;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Register.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.register-container {
-    display: flex;
-    flex-wrap: wrap; /* Asigură rearanjarea pe ecrane mici */
-    height: 100vh;
-}
-
-.left-panel {
-    flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către imaginea ta */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Asigură că partea dreaptă ocupă întreaga lățime pe mobil */
-}
-
-.register-card {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.register-card h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.register-card form {
-    display: flex;
-    flex-direction: column;
-}
-
-.register-card input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 20px;
-    border: none;
-    border-radius: 5px;
-    background: #e5e7e6;
-    color: #000;
-}
-
-.register-card input::placeholder {
-    color: #a9a9a9;
-}
-
-.register-card button {
-    width: 100%;
-    padding: 10px;
-    background: #e5e7e6;
-    color: #003554;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.register-card button:hover {
-    background: #d9d9d9;
-}
-
-.register-card p {
-    color: #fff;
-    margin-top: 20px;
-}
-
-.register-card p a {
-    color: #e5e7e6;
-    text-decoration: none;
-}
-
-.register-card p a:hover {
-    text-decoration: underline;
-}
-
-.contact-support {
-    color: #e5e7e6;
-    text-align: center;
-    margin-top: 20px;
-}
-
-/* Responsive: Ascundem partea stângă pe ecrane mici */
-@media (max-width: 768px) {
-    .left-panel {
-        display: none;
-    }
-
-    .right-panel {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Register.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/Register.tsx
+// ==================================================
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -4208,122 +2411,9 @@ const Register: React.FC = () => {
 
 export default Register;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/ResetPassword.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.reset-container {
-    display: flex;
-    flex-wrap: wrap; /* Rearanjare pe ecrane mici */
-    height: 100vh;
-}
-
-.left-panel {
-    flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către imaginea ta */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Asigură că partea dreaptă ocupă întreaga lățime pe mobil */
-}
-
-.reset-card {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.reset-card h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.error-message3 {
-    background: #ff4d4f;
-    color: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-}
-
-.reset-card form {
-    display: flex;
-    flex-direction: column;
-}
-
-.reset-card input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 20px;
-    border: none;
-    border-radius: 5px;
-    background: #e5e7e6;
-    color: #000;
-}
-
-.reset-card input::placeholder {
-    color: #a9a9a9;
-}
-
-.reset-card button {
-    width: 100%;
-    padding: 10px;
-    background: #e5e7e6;
-    color: #003554;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.reset-card button:hover {
-    background: #d9d9d9;
-}
-
-/* Responsive: Ascundem partea stângă pe ecrane mici */
-@media (max-width: 768px) {
-    .left-panel {
-        display: none;
-    }
-
-    .right-panel {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/ResetPassword.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/ResetPassword.tsx
+// ==================================================
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './ResetPassword.css';
@@ -4390,88 +2480,9 @@ const ResetPassword: React.FC = () => {
 
 export default ResetPassword;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Verify.css
-================================================================================
-
-body {
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background: #f3f4f6;
-    color: #000;
-}
-
-.verify-container {
-    display: flex;
-    flex-wrap: wrap; /* Rearanjare pe ecrane mici */
-    height: 100vh;
-}
-
-.left-panel {
-    flex: 1;
-    background-image: url('logo.webp'); /* Înlocuiește cu calea către imaginea ta */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-.right-panel {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #1f2a38;
-    padding: 20px;
-    width: 100%; /* Asigură că partea dreaptă ocupă întreaga lățime pe mobil */
-}
-
-.verify-card {
-    background: #003554;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.verify-card h2 {
-    margin-bottom: 20px;
-    color: #e5e7e6;
-}
-
-.verify-card p {
-    color: #fff;
-    margin-bottom: 20px;
-    background: #162447;
-    padding: 10px;
-    border-radius: 5px;
-}
-
-/* Responsive: Ascundem partea stângă pe ecrane mici */
-@media (max-width: 768px) {
-    .left-panel {
-        display: none;
-    }
-
-    .right-panel {
-        flex: 1;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Auth/Verify.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/Verify.tsx
+// ==================================================
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -4493,7 +2504,7 @@ const Verify: React.FC = () => {
 
       try {
         const response = await axios.post(`http://localhost:5869/api/auth/verify/${token}`);
-        
+
         if (response.status === 200) {
           setMessage('Your email has been successfully confirmed! Redirecting to login...');
           setIsError(false);
@@ -4530,11 +2541,9 @@ const Verify: React.FC = () => {
 
 export default Verify;
 
-
-================================================================================
-FILE: ./frontend/src/components/Auth/VerifyAccount.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Auth/VerifyAccount.tsx
+// ==================================================
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../../config/axiosConfig';
@@ -4568,11 +2577,9 @@ const VerifyAccount: React.FC = () => {
 
 export default VerifyAccount;
 
-
-================================================================================
-FILE: ./frontend/src/components/Home/Card.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Home/Card.tsx
+// ==================================================
 import React from 'react';
 import './Card.css';
 
@@ -4595,133 +2602,9 @@ const Card: React.FC<CardProps> = ({ title, value, change, color }) => {
 
 export default Card;
 
-
-================================================================================
-FILE: ./frontend/src/components/Home/Chart.css
-================================================================================
-
-.chart-container {
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 1rem;
-    box-sizing: border-box;
-    background-color: #223449;
-    border-radius: 10px;
-    overflow: hidden;
-    margin-top: 40px;
-}
-
-.chart-content {
-    display: flex;
-    flex-direction: column; /* One chart per row */
-    gap: 3rem; /* Space between charts */
-    width: 100%;
-    margin-top: 1.25rem;
-}
-
-.chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-    gap: 1rem;
-    color: #ffffff !important;
-}
-
-.chart-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.625rem;
-}
-
-.chart-buttons button {
-    padding: 0.625rem 1rem;
-    background-color: #314b68; /* Dark blue */
-    color: #e5e7e6; /* Light text */
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.3s ease;
-}
-
-.chart-buttons button.active,
-.chart-buttons button:hover {
-    background-color: #358ef3; /* Light blue */
-    color: #ffffff; /* White text */
-}
-
-.chart-item {
-    background-color: #101923;
-    border: 1px solid #314b68;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    width: 100%; /* Full width */
-    height: 500px; /* Consistent height for charts */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.chart-item h3 {
-    margin-bottom: 0.625rem;
-    font-size: 1rem;
-    text-align: center;
-    color: #e5e7e6; /* White text */
-}
-
-.chart-item canvas {
-    width: 95% !important;
-    height: 95% !important;
-}
-
-/* Legend container */
-.chart-legend {
-    display: flex;
-    justify-content: center;
-    gap: 1.5rem;
-    margin-top: 0.5rem; /* Adjust space between buttons and legend */
-    margin-bottom: 1rem; /* Adjust space between legend and chart */
-}
-
-/* Each legend item */
-.legend-item {
-    display: flex;
-    align-items: center;
-    font-size: 0.875rem; /* Match existing font size */
-    color: #e5e7e6; /* Maintain consistent text color */
-}
-
-/* Legend color box */
-.legend-color {
-    width: 15px;
-    height: 15px;
-    margin-right: 0.5rem;
-    border-radius: 3px;
-}
-
-/* Responsive styles */
-@media (max-width: 768px) {
-    .chart-header {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .chart-content {
-        gap: 2rem; /* Smaller gap between charts for mobile */
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Home/Chart.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Home/Chart.tsx
+// ==================================================
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
@@ -4911,165 +2794,9 @@ const Chart = () => {
 
 export default Chart;
 
-
-================================================================================
-FILE: ./frontend/src/components/Home/Navbar.css
-================================================================================
-
-/* Navbar Container */
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #101923 !important;
-  padding: 10px 20px;
-  border-bottom: 1px solid #223449;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  width: 100%;
-  box-sizing: border-box; 
-  margin-bottom: 20px;
-}
-.navbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.navbar-left h2 {
-  font-size: 18px;
-  color: #ffffff;
-  margin: 0;
-}
-.navbar-right {
-  display: flex;
-  align-items: center;
-}
-
-/* Default: Hide the Account link */
-.navbar-links a[href="/profile"] {
-  display: none;
-}
-
-/* Mobile: Show the Account link */
-@media screen and (max-width: 768px) {
-  .navbar-links a[href="/profile"] {
-    display: block;
-  }
-}
-
-
-.menu-toggle {
-  background: none;
-  border: none;
-  color: #ffffff;
-  font-size: 24px;
-  cursor: pointer;
-  display: none;
-}
-
-.navbar-links {
-  display: flex;
-  gap: 15px;
-}
-.navbar-links a {
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.navbar-buttons {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.profile-pic {
-  width: 36px;
-  height: 36px;
-  background-color: #223449;
-  border-radius: 50%;
-}
-
-/* Mobile Sidebar Styling */
-@media screen and (max-width: 768px) {
-  .menu-toggle {
-    display: block;
-  }
-
-  .navbar-links {
-    display: none;
-    position: fixed;
-    top: 0;
-    right: 0;
-    height: 100%;
-    width: 75%;
-    background-color: #101923;
-    flex-direction: column;
-    padding: 20px;
-    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5);
-    z-index: 100;
-    transition: transform 0.3s ease-in-out;
-    transform: translateX(100%);
-  }
-
-  .navbar-links.open {
-    display: flex;
-    transform: translateX(0);
-  }
-
-  .navbar-links a {
-    font-size: 16px;
-    padding: 10px 0;
-    color: #ffffff;
-    border-bottom: 1px solid #223449;
-  }
-
-  .balance-display {
-    font-size: 16px;
-    color: #ffffff;
-    margin-top: 20px;
-  }
-  .navbar-buttons {
-    display: none; /* Hide buttons on mobile */
-  }
-
-}
-.menu-close {
-  display: none; /* Ascuns implicit pentru desktop */
-  font-size: 24px;
-  color: #ffffff;
-  background: none;
-  border: none;
-  position: absolute; /* Poziționare absolută în meniu */
-  top: 10px; /* Margine de sus */
-  right: 15px; /* Margine de dreapta */
-  cursor: pointer;
-  z-index: 101; /* Asigură că este deasupra */
-}
-
-.menu-close:hover {
-  color: #00bfff; /* Schimbare de culoare la hover */
-}
-
-@media screen and (max-width: 768px) {
-  .menu-close {
-    display: block; /* Afișează butonul doar pe mobil */
-  }
-}
-.balance-display {
-  font-size: 14px;
-  color: #ffffff;
-  margin-right: 20px; /* Adaugă spațiu între balance și imaginea de profil */
-  white-space: nowrap; /* Asigură că textul rămâne pe un singur rând */
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Home/Navbar.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Home/Navbar.tsx
+// ==================================================
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./Navbar.css";
@@ -5186,141 +2913,9 @@ const Navbar = () => {
 
 export default Navbar;
 
-
-================================================================================
-FILE: ./frontend/src/components/Home/ProfileCard.css
-================================================================================
-
-/* Profile Card Container */
-.profile-card {
-    margin: 20px auto; /* Center align on smaller screens */
-    padding: 20px;
-    background-color: #4CAF50;
-    color: #F4F4F8;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.3s, transform 0.3s;
-    text-decoration: none;
-    display: block;
-    font-weight: bold;
-    max-width: 600px; /* Restrict maximum width */
-    width: 90%; /* Adjust to smaller screen sizes */
-}
-
-/* Hover Effect */
-.profile-card:hover {
-    background-color: #3E8E41;
-    color: inherit;
-    transform: scale(1.02); /* Slight zoom effect */
-}
-
-/* Profile Info Section */
-.profile-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    width: 100%;
-}
-
-/* Profile Name */
-.profile-name {
-    font-weight: bold;
-    color: #F4F4F8;
-    font-size: 1.5em; /* Slightly larger for readability */
-    margin-top: 10px;
-}
-
-/* Profile Title */
-.profile-title {
-    font-size: 1em;
-    color: #E9F5E8;
-    margin-top: 5px;
-}
-
-/* Admin Menu Section */
-.admins-menu {
-    margin-top: 20px;
-}
-
-/* Admin Menu Title */
-.admins-menu-title {
-    padding: 10px 0;
-    font-size: 1.2em;
-    color: #F4F4F8;
-    margin-bottom: 10px;
-}
-
-/* Settings Button */
-.settings-button {
-    margin: 20px auto; /* Center align on smaller screens */
-    padding: 10px 20px;
-    background-color: #E5E7E6;
-    color: #4CAF50;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.3s, transform 0.3s;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    width: fit-content;
-}
-
-/* Icon Margin */
-.settings-button .icon {
-    margin-right: 10px; /* Adds space between the icon and text */
-}
-
-/* Hover Effect for Settings Button */
-.settings-button:hover {
-    background-color: #2ec4b6;
-    color: #000;
-    transform: translateY(-3px); /* Slight lift effect */
-}
-
-/* Responsive Adjustments */
-@media screen and (max-width: 768px) {
-    .profile-card {
-        max-width: 100%; /* Take full width of the screen */
-        padding: 15px;
-    }
-
-    .profile-name {
-        font-size: 1.3em; /* Reduce font size for smaller screens */
-    }
-
-    .profile-title {
-        font-size: 0.9em; /* Adjust font size for smaller screens */
-    }
-
-    .settings-button {
-        padding: 8px 16px; /* Reduce padding for smaller screens */
-    }
-}
-
-@media screen and (max-width: 480px) {
-    .profile-card {
-        padding: 10px;
-        font-size: 0.9em; /* Adjust text size for very small screens */
-    }
-
-    .settings-button {
-        padding: 6px 12px; /* Compact padding for very small screens */
-        font-size: 0.8em; /* Reduce button text size */
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Home/ProfileCard.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Home/ProfileCard.tsx
+// ==================================================
 import React, { useEffect, useState, useContext } from 'react';
 import axios from '../../config/axiosConfig';
 import { Link } from 'react-router-dom';
@@ -5378,7 +2973,6 @@ const ProfileCard: React.FC = () => {
                 console.error('Error fetching balance', error);
             }
         };
-    
 
         if (authContext?.isAuthenticated) {
             fetchProfile();
@@ -5419,11 +3013,9 @@ const ProfileCard: React.FC = () => {
 
 export default ProfileCard;
 
-
-================================================================================
-FILE: ./frontend/src/components/Main/PrivateRoute.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Main/PrivateRoute.tsx
+// ==================================================
 import React, { useContext } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
@@ -5442,82 +3034,9 @@ const PrivateRoute: React.FC = () => {
 
 export default PrivateRoute;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/ActivityPage.css
-================================================================================
-
-.activity-container {
-    background-color: #101923;
-    color: #ffffff;
-    padding: 20px;
-    min-height: 100vh;
-  }
-  
-  .layout-content-container {
-    max-width: 960px;
-    margin: auto;
-  }
-  
-  .activity-title {
-    font-size: 32px;
-    font-weight: bold;
-    margin-bottom: 20px;
-  }
-  
-  .activity-subtitle {
-    font-size: 18px;
-    font-weight: bold;
-    margin-top: 20px;
-  }
-  
-  .activity-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #223449;
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 10px;
-  }
-  
-  .activity-details {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  .activity-icon {
-    width: 40px;
-    height: 40px;
-    background: #314b68;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .activity-description {
-    font-weight: bold;
-  }
-  
-  .activity-amount {
-    color: #90abcb;
-  }
-  
-  .activity-date {
-    color: #90abcb;
-  }
-  
-  .activity-arrow {
-    font-size: 18px;
-  }
-  
-
-================================================================================
-FILE: ./frontend/src/components/pages/ActivityPage.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/ActivityPage.tsx
+// ==================================================
 import React, { useEffect, useState } from "react";
 import axios from "../../config/axiosConfig"; // Configurația Axios
 import Navbar from "../Home/Navbar";
@@ -5616,150 +3135,9 @@ const ActivityPage: React.FC = () => {
 
 export default ActivityPage;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Balance.css
-================================================================================
-
-.balance-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    margin-left: 290px;
-    background-color: #E5E7e6;
-    color: #333;
-    font-family: 'Arial', sans-serif;
-    padding: 20px;
-    gap: 30px;
-}
-
-/* Header pentru Balance */
-.balance-header {
-    background: #003554;
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: white;
-}
-
-.balance-header h2 {
-    margin: 0;
-    font-size: 28px;
-    font-weight: bold;
-}
-
-.balance-header p {
-    font-size: 26px;
-    font-weight: bold;
-    color: #fff;
-    background-color: rgba(0, 0, 0, 0.2);
-    padding: 10px 20px;
-    border-radius: 10px;
-}
-
-/* Stocuri Header */
-.stocks-header {
-    font-size: 26px;
-    font-weight: bold;
-    color: #4a4a4a;
-    margin-bottom: 15px;
-}
-
-.stock-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-    padding: 0;
-    list-style: none;
-    margin: 0;
-}
-
-/* Card individual pentru fiecare stoc */
-.stock-item {
-    background: white;
-    border-radius: 15px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.stock-item:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
-}
-
-.stock-symbol {
-    font-size: 20px;
-    font-weight: bold;
-    color: #333;
-}
-
-.stock-quantity {
-    font-size: 18px;
-    margin-top: 10px;
-    color: #003554;
-}
-
-/* Secțiunea pentru acțiuni */
-.balance-actions {
-    background: #003554;
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    color: white;
-}
-
-.balance-actions input {
-    padding: 15px;
-    border-radius: 10px;
-    border: 2px solid white;
-    background-color: #f5f5f5;
-    color: #333;
-    width: 100%;
-    max-width: 350px;
-    font-size: 18px;
-    transition: border-color 0.3s ease;
-}
-
-.balance-actions input:focus {
-    border-color: #2575fc;
-    outline: none;
-}
-
-.balance-actions button {
-    padding: 15px 30px;
-    border-radius: 10px;
-    border: none;
-    background-color: white;
-    color: #2575fc;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.3s ease;
-    font-size: 18px;
-}
-
-.balance-actions button:hover {
-    background-color: #003554;
-    color: white;
-    transform: scale(1.05);
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Balance.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Balance.tsx
+// ==================================================
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axiosConfig';
 import Navbar from '../Home/Navbar';
@@ -5879,166 +3257,9 @@ const Balance: React.FC = () => {
 
 export default Balance;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/BusinessNews.css
-================================================================================
-
-/* General Styling */
-.business-news-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background-color: #101923; /* Fundal similar cu Invest */
-    color: #ecf0f1; /* Culoare text similară cu Invest */
-}
-
-.news-content {
-    flex-grow: 1;
-    padding: 2rem 4rem; /* Spațiu consistent cu Invest */
-    overflow-y: auto;
-    color: #ecf0f1; /* Culoare text alb */
-}
-
-.news-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-}
-
-.news-header h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #ffffff; /* Titlu alb */
-}
-
-.news-scroll-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    padding-top: 1rem;
-}
-
-.news-article {
-    background-color: #223449;
-    color: #ecf0f1;
-    border-radius: 10px;
-    padding: 1rem;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    transition: transform 0.3s ease, background-color 0.3s ease;
-    cursor: pointer;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.news-article img {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-}
-
-.news-article h4 {
-    margin: 0;
-    font-size: 1rem;
-    color: #ffffff; /* Titlu alb */
-}
-
-.news-article p {
-    margin-top: 0.5rem;
-    font-size: 0.875rem;
-    color: #90abcb; /* Text descriere albastru deschis */
-}
-
-.news-article:hover {
-    background-color: #358ef3; /* Schimbă fundalul la hover */
-    color: #ffffff;
-    transform: scale(1.05); /* Adaugă efect de hover */
-}
-
-/* Responsive Design */
-
-/* Tablets and smaller screens */
-@media screen and (max-width: 1024px) {
-    .news-content {
-        padding: 1.5rem 2rem; /* Reduce padding on smaller screens */
-    }
-
-    .news-scroll-container {
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Adjust column size */
-    }
-
-    .news-article img {
-        height: 120px; /* Reduce image height */
-    }
-
-    .news-article h4 {
-        font-size: 0.9rem; /* Reduce title size */
-    }
-
-    .news-article p {
-        font-size: 0.8rem; /* Reduce description size */
-    }
-}
-
-/* Mobile screens (less than 768px) */
-@media screen and (max-width: 768px) {
-    .news-content {
-        padding: 1rem; /* Further reduce padding for small devices */
-    }
-
-    .news-scroll-container {
-        grid-template-columns: 1fr; /* Single column for narrow screens */
-    }
-
-    .news-article {
-        padding: 0.8rem; /* Reduce card padding */
-    }
-
-    .news-article img {
-        height: 100px; /* Smaller image for mobile */
-    }
-
-    .news-article h4 {
-        font-size: 0.8rem; /* Smaller title */
-    }
-
-    .news-article p {
-        font-size: 0.7rem; /* Smaller description */
-    }
-}
-
-/* Extra small screens (less than 480px) */
-@media screen and (max-width: 480px) {
-    .news-scroll-container {
-        gap: 10px; /* Reduce gap between cards */
-    }
-
-    .news-article {
-        padding: 0.5rem; /* Minimize card padding */
-    }
-
-    .news-article img {
-        height: 80px; /* Smallest image for extra small screens */
-    }
-
-    .news-article h4 {
-        font-size: 0.75rem; /* Further reduce title size */
-    }
-
-    .news-article p {
-        font-size: 0.65rem; /* Further reduce description size */
-    }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/BusinessNews.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/BusinessNews.tsx
+// ==================================================
 import React, { useEffect, useState } from "react";
 import axios from "../../config/axiosConfig";
 import Navbar from "../Home/Navbar"; // Ajustăm calea
@@ -6115,157 +3336,9 @@ const BusinessNews: React.FC = () => {
 
 export default BusinessNews;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Chatbot.css
-================================================================================
-
-/* Chatbot Container */
-.chatbot-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-}
-
-/* Toggle Button */
-.chatbot-toggle-button {
-  background-color: #358ef3; /* Highlight color from Invest pages */
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 60px;
-  height: 60px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-icon {
-  font-size: 24px;
-}
-
-/* Chatbot Panel */
-.chatbot-panel {
-  position: fixed;
-  bottom: 0;
-  right: 0;
-  width: 400px;
-  height: 600px;
-  background-color: #101923; /* Primary background color */
-  box-shadow: -2px 0px 10px rgba(0, 0, 0, 0.2);
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px 10px 0 0;
-  color: #ffffff; /* Text primary */
-}
-
-.chatbot-panel.open {
-  transform: translateX(0);
-}
-
-/* Chatbot Header */
-.chatbot-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #223449; /* Secondary background color */
-  color: #ffffff; /* Primary text */
-  padding: 10px 20px;
-  border-radius: 10px 10px 0 0;
-  font-weight: bold;
-  font-size: 16px;
-}
-
-.close-button {
-  background: none;
-  border: none;
-  color: #ffffff;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-/* Messages Section */
-.chatbot-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  background-color: #101923; /* Primary background color */
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chatbot-message {
-  max-width: 80%;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.chatbot-message.user {
-  background-color: #358ef3; /* Highlight color */
-  color: white;
-  align-self: flex-end;
-}
-
-.chatbot-message.bot {
-  background-color: #223449; /* Secondary background */
-  color: #90abcb; /* Secondary text color */
-  align-self: flex-start;
-}
-
-/* Input Container */
-.chatbot-input-container {
-  display: flex;
-  padding: 10px;
-  background-color: #223449; /* Secondary background */
-  border-top: 1px solid #314b68; /* Subtle border */
-}
-
-.chatbot-input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #314b68;
-  border-radius: 20px;
-  outline: none;
-  font-size: 14px;
-  margin-right: 8px;
-  background-color: #101923; /* Primary background color */
-  color: #ffffff; /* Primary text color */
-}
-
-.chatbot-send-button {
-  background-color: #358ef3; /* Highlight color */
-  border: none;
-  color: white;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-/* Responsive Design */
-@media screen and (max-width: 600px) {
-  .chatbot-panel {
-    width: 100%;
-    height: 80%;
-    border-radius: 10px 10px 0 0;
-  }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Chatbot.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Chatbot.tsx
+// ==================================================
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '../../config/axiosConfig';
 import './Chatbot.css';
@@ -6367,263 +3440,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ isVisible, onClose }) => {
 
 export default Chatbot;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/DepositFunds.css
-================================================================================
-
-body {
-  font-family: 'Inter', 'Noto Sans', sans-serif;
-  margin: 0;
-  padding: 0;
-  background-color: #101923;
-  color: white;
-}
-
-.layout-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  min-height: 100vh;
-  box-sizing: border-box;
-}
-
-.layout-content-container {
-  width: 100%;
-  max-width: 960px;
-  background-color: #101923;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.25);
-  box-sizing: border-box;
-}
-
-.title {
-  font-size: 22px;
-  font-weight: bold;
-  margin-bottom: 16px;
-  text-align: center; /* Centered title for small screens */
-}
-
-.description {
-  color: #90abcb;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid #314b68;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-.option:hover {
-  background-color: #223449;
-  border-color: #358ef3;
-}
-
-.radio-input {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #314b68;
-  background: transparent;
-  cursor: pointer;
-}
-
-.radio-input:checked {
-  border-color: #358ef3;
-  background-color: #358ef3;
-}
-
-.option-text {
-  font-size: 14px;
-  font-weight: medium;
-}
-
-.section-title {
-  font-size: 18px;
-  font-weight: bold;
-  margin-top: 24px;
-  text-align: center; /* Centered titles for better alignment */
-}
-
-.section-description {
-  color: #90abcb;
-  margin-bottom: 16px;
-  text-align: center;
-}
-
-.details-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.detail {
-  padding: 12px;
-  border-top: 1px solid #314b68;
-}
-
-.label {
-  color: #90abcb;
-  font-size: 14px;
-}
-
-.value {
-  font-size: 14px;
-}
-
-.button-container {
-  margin-top: 16px;
-}
-
-.button {
-  width: 100%;
-  padding: 12px;
-  background-color: #223449;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.button:hover {
-  background-color: #358ef3;
-}
-
-/* Form Styles for ACH Transfer */
-.ach-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-label {
-  font-size: 14px;
-  color: #90abcb;
-}
-
-.form-input {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #314b68;
-  border-radius: 8px;
-  background-color: #101923;
-  color: white;
-  font-size: 14px;
-  transition: border-color 0.3s ease;
-}
-
-.form-input:focus {
-  border-color: #358ef3;
-  outline: none;
-}
-
-.ach-form .button {
-  margin-top: 16px;
-  padding: 12px;
-  background-color: #223449;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.ach-form .button:hover {
-  background-color: #358ef3;
-}
-
-/* Responsive Design */
-@media screen and (max-width: 768px) {
-  .layout-content-container {
-    padding: 16px;
-  }
-
-  .title {
-    font-size: 20px;
-  }
-
-  .section-title {
-    font-size: 16px;
-  }
-
-  .details-grid {
-    grid-template-columns: 1fr; /* Single column for smaller screens */
-    gap: 8px;
-  }
-
-  .form-input {
-    font-size: 12px; /* Smaller font size for inputs on small screens */
-  }
-
-  .button {
-    font-size: 12px; /* Smaller button font */
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .title {
-    font-size: 18px;
-  }
-
-  .description {
-    font-size: 14px;
-  }
-
-  .section-title {
-    font-size: 14px;
-  }
-
-  .button {
-    font-size: 12px;
-  }
-
-  .form-input {
-    font-size: 12px;
-    padding: 8px; /* Smaller padding for smaller screens */
-  }
-}
-.balance-section {
-  text-align: center;
-  margin: 20px 0;
-}
-
-.balance-amount {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #fff;
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/DepositFunds.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/DepositFunds.tsx
+// ==================================================
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Home/Navbar';
 import './DepositFunds.css';
@@ -6674,7 +3493,7 @@ const DepositFunds: React.FC = () => {
         );
         setBalance(response.data.balance ?? balance); // Actualizăm soldul local
         alert("Balance successfully added!");
-  
+
         // Notificăm Navbar că soldul s-a schimbat
         window.dispatchEvent(new Event("balanceUpdated"));
       }
@@ -6683,7 +3502,7 @@ const DepositFunds: React.FC = () => {
       alert("Error processing payment. Please try again.");
     }
   };
-  
+
   const fetchStocks = async () => {
     try {
       const token = localStorage.getItem('authToken');
@@ -6870,185 +3689,9 @@ const DepositFunds: React.FC = () => {
 
 export default DepositFunds;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Home.css
-================================================================================
-
-/* General Styles */
-body, html {
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', 'Noto Sans', sans-serif;
-  color: #e5e7e6;
-  overflow-x: hidden; /* Elimină scroll-ul orizontal */
-}
-
-.stock-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.stock-header img {
-  width: 50px;
-  height: 50px;
-  object-fit: contain;
-  border-radius: 5px;
-  margin-right: 10px;
-  background-color: #3a3d46;
-}
-
-
-.home-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  padding: 20px;
-  box-sizing: border-box;
-  background-color: #101923!important;
-}
-
-/* Header styling */
-.home-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  margin-top: 20px;
-  color: #ffffff;
-}
-
-.home-header h2 {
-  font-size: 28px;
-  margin: 0;
-  color: #ffffff;
-  font-weight: bold;
-}
-
-/* Owned Stocks Section */
-.owned-stocks {
-  margin-top: 20px;
-  color: #ffffff !important;
-}
-
-.owned-stocks h3 {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 12px;
-}
-
-/* Cards Section */
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Layout flexibil */
-  gap: 16px;
-  margin-top: 12px;
-}
-
-.card {
-  background-color: #1f2a38;
-  border-radius: 8px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #ffffff;
-  margin-bottom: 8px;
-}
-
-.card-value {
-  font-size: 14px;
-  color: #90abcb;
-}
-
-/* Chatbot Icon */
-.chatbot-icon {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background-color: #358ef3;
-  color: #ffffff;
-  border: none;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  font-size: 24px;
-  cursor: pointer;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.chatbot-icon:hover {
-  background-color: #003554;
-}
-
-/* Responsive Design */
-@media screen and (max-width: 768px) {
-  .cards {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Ajustare pentru ecrane mici */
-    gap: 12px;
-  }
-
-  .card {
-    padding: 12px;
-  }
-
-  .card-title {
-    font-size: 14px;
-  }
-
-  .card-value {
-    font-size: 12px;
-  }
-
-  .home-header h2 {
-    font-size: 22px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .cards {
-    grid-template-columns: 1fr; /* O singură coloană pe ecrane foarte mici */
-  }
-
-  .card {
-    padding: 10px;
-  }
-
-  .card-title {
-    font-size: 14px;
-  }
-
-  .card-value {
-    font-size: 12px;
-  }
-
-  .home-header h2 {
-    font-size: 18px;
-    text-align: center;
-  }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Home.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Home.tsx
+// ==================================================
 import React, { useEffect, useState } from 'react';
 import axios from '../../config/axiosConfig';
 import './Home.css';
@@ -7166,254 +3809,9 @@ const Home: React.FC = () => {
 
 export default Home;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Invest1.css
-================================================================================
-
-.invest-root {
-    background-color: #101923;
-    min-height: 100vh;
-    color: #e5e7e6;
-}
-
-.invest-container {
-    display: flex;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 40px 20px;
-    gap: 40px;
-}
-
-.invest-left {
-    flex: 2;
-}
-
-.invest-right {
-    flex: 1;
-}
-
-.invest-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
-}
-
-.invest-header h1 {
-    font-size: 32px;
-    margin: 0;
-}
-
-.price-display {
-    text-align: right;
-}
-
-.current-price {
-    display: block;
-    font-size: 28px;
-    font-weight: bold;
-    color: #4caf50;
-}
-
-.price-label {
-    font-size: 14px;
-    color: #9ea2a8;
-}
-
-.chart-section {
-    background: #1f2a38;
-    padding: 20px;
-    border-radius: 12px;
-    border: 1px solid #3a3d46;
-}
-
-.range-buttons {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.range-buttons button {
-    background: #101923;
-    border: 1px solid #3a3d46;
-    color: #9ea2a8;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.range-buttons button.active {
-    background: #4caf50;
-    color: white;
-    border-color: #4caf50;
-}
-
-.chart-wrapper {
-    height: 400px;
-    position: relative;
-}
-
-.chart-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #9ea2a8;
-}
-
-.order-box {
-    background: #1f2a38;
-    padding: 24px;
-    border-radius: 12px;
-    border: 1px solid #3a3d46;
-    position: sticky;
-    top: 20px;
-}
-
-.order-box h2 {
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-size: 20px;
-}
-
-.order-type-toggle {
-    display: flex;
-    background: #101923;
-    padding: 4px;
-    border-radius: 8px;
-    margin-bottom: 24px;
-}
-
-.order-type-toggle button {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: #9ea2a8;
-    padding: 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.order-type-toggle button.active {
-    background: #358ef3;
-    color: white;
-}
-
-.input-group {
-    margin-bottom: 20px;
-}
-
-.input-group label {
-    display: block;
-    font-size: 14px;
-    color: #9ea2a8;
-    margin-bottom: 8px;
-}
-
-.input-group input {
-    width: 100%;
-    background: #101923;
-    border: 1px solid #3a3d46;
-    color: white;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 16px;
-    box-sizing: border-box;
-}
-
-.cost-summary {
-    border-top: 1px solid #3a3d46;
-    padding-top: 20px;
-    margin-top: 20px;
-}
-
-.cost-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.cost-row span {
-    color: #9ea2a8;
-}
-
-.total-cost {
-    color: white !important;
-    font-size: 20px;
-    font-weight: bold;
-}
-
-.buy-btn {
-    width: 100%;
-    background: #4caf50;
-    color: white;
-    border: none;
-    padding: 16px;
-    border-radius: 8px;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.buy-btn:hover {
-    background: #45a049;
-}
-
-@media (max-width: 900px) {
-    .invest-container {
-        flex-direction: column;
-    }
-}
-
-.title-area {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.market-status-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: bold;
-    width: fit-content;
-}
-
-.market-status-badge.open {
-    background: rgba(76, 175, 80, 0.1);
-    color: #4caf50;
-    border: 1px solid rgba(76, 175, 80, 0.3);
-}
-
-.market-status-badge.closed {
-    background: rgba(231, 76, 60, 0.1);
-    color: #e74c3c;
-    border: 1px solid rgba(231, 76, 60, 0.3);
-}
-
-.market-warning {
-    background: rgba(231, 76, 60, 0.15);
-    color: #e74c3c;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    margin-bottom: 20px;
-    border: 1px solid rgba(231, 76, 60, 0.3);
-    line-height: 1.4;
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Invest1.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Invest1.tsx
+// ==================================================
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import Navbar from "../Home/Navbar";
@@ -7469,7 +3867,7 @@ const Invest: React.FC = () => {
   const [limitPrice, setLimitPrice] = useState(stock?.currentPrice || 0);
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
-  
+
   // Chart state
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [range, setRange] = useState<string>("1mo");
@@ -7500,7 +3898,7 @@ const Invest: React.FC = () => {
             exchange: response.data.fullExchangeName,
             timezone: response.data.exchangeTimezoneName
         });
-        
+
         // Update history with new point if it's different from last
         setHistory(prev => {
             if (prev.length === 0) return prev;
@@ -7538,7 +3936,7 @@ const Invest: React.FC = () => {
   const handleBuy = async () => {
     if (!stock) return alert("No stock selected.");
     const price = orderType === "market" ? currentPrice : limitPrice;
-    
+
     const transaction = {
         type: "buy",
         quantity,
@@ -7737,386 +4135,9 @@ const Invest: React.FC = () => {
 
 export default Invest;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Products.css
-================================================================================
-
-/* General Styling for the Page */
-body {
-  overflow-x: hidden;
-  margin: 0;
-  padding: 0;
-}
-
-/* Main Container */
-.stock-list-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: #101923 !important;
-  color: #e5e7e6;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
-/* Content Section */
-.stock-list-content {
-  flex-grow: 1;
-  padding: 20px;
-  background: #101923;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Grid for Stock Items */
-.stock-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
-}
-
-/* Individual Stock Item */
-.stock-item {
-  box-sizing: border-box;
-  max-width: 100%;
-  background-color: #1f2a38 !important;
-  border-radius: 8px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border: 2px solid #3a3d46;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-/* Stock Header with Logo and Symbol */
-.stock-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.stock-header img {
-  width: 50px;
-  height: 50px;
-  object-fit: contain;
-  border-radius: 5px;
-  margin-right: 10px;
-  background-color: #3a3d46;
-}
-
-.stock-header h2 {
-  font-size: 18px;
-  font-weight: bold;
-  margin: 0;
-  color: #ffffff;
-}
-
-/* Stock Details Section */
-.stock-details {
-  margin-bottom: 15px;
-  font-size: 16px;
-  color: #9ea2a8;
-}
-
-.stock-label {
-  font-weight: bold;
-}
-
-.stock-value {
-  color: #4caf50;
-}
-
-/* Buttons for Buy and Sell */
-.stock-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.stock-buttons button {
-  flex: 1;
-  padding: 10px 15px;
-  font-size: 14px;
-  font-weight: bold;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.stock-buttons .buy-button {
-  background-color: #358ef3;
-  color: white;
-}
-
-.stock-buttons .buy-button:hover {
-  background-color: #003554;
-  transform: scale(1.05);
-}
-
-.stock-buttons .sell-button {
-  background-color: #e74c3c;
-  color: white;
-}
-
-.stock-buttons .sell-button:hover {
-  background-color: #c0392b;
-  transform: scale(1.05);
-}
-
-/* Predict Section */
-/* Stock Input Box */
-.stock-input-box {
-  background-color: #1f2a38;
-  border-radius: 8px;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.stock-input-box input {
-  width: 100%;
-  max-width: 600px;
-  padding: 12px;
-  font-size: 14px;
-  border: 2px solid #3498db;
-  border-radius: 8px;
-  outline: none;
-  background-color: #101923;
-  color: #e5e7e6;
-}
-
-.stock-input-box input:focus {
-  border-color: #2980b9;
-  box-shadow: 0 0 8px rgba(41, 128, 185, 0.5);
-}
-
-/* Buttons in the Stock Input Box */
-.stock-input-box .buttons-container {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.stock-input-box button {
-  padding: 12px 20px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #ffffff;
-  background-color: #358ef3;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.stock-input-box button:hover {
-  background-color: #003554;
-  transform: scale(1.05);
-}
-
-/* Responsive Styling */
-@media (max-width: 768px) {
-  .stock-input-box .buttons-container {
-    flex-direction: column;
-    width: 100%;
-    gap: 10px;
-  }
-
-  .stock-input-box button {
-    width: 100%;
-  }
-}
-
-/* Button Container in Predict Section */
-.stock-input-box .buttons-container {
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-.result-message {
-  background-color: #1f2a38;
-  color: #e5e7e6;
-  padding: 15px;
-  border-radius: 8px;
-  margin-top: 15px;
-  text-align: center;
-  font-size: 16px;
-  font-weight: bold;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Color Highlight for Prediction and Decision */
-.result-message:first-of-type {
-  border-left: 5px solid #4caf50; /* Green for Prediction */
-}
-
-.result-message:last-of-type {
-  border-left: 5px solid #e74c3c; /* Red for Decision */
-}
-
-/* Responsive Styling */
-@media (max-width: 768px) {
-  .result-message {
-    font-size: 14px;
-    padding: 12px;
-  }
-}
-/* Responsive Styling for Smaller Screens */
-@media (max-width: 768px) {
-  .stock-list {
-    grid-template-columns: 1fr;
-  }
-
-  .stock-input-box {
-    flex-direction: column;
-    gap: 10px;
-    align-items: stretch;
-  }
-
-  .stock-input-box input {
-    width: 100%;
-  }
-
-  .stock-input-box .buttons-container {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .stock-input-box button {
-    width: 100%;
-  }
-
-  .stock-header img {
-    width: 40px;
-    height: 40px;
-  }
-}
-
-/* Autocomplete Search Bar Styles */
-.search-container {
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.search-input {
-  width: 100%;
-  padding: 12px;
-  font-size: 16px;
-  border: 2px solid #3498db;
-  border-radius: 8px;
-  outline: none;
-  background-color: #101923;
-  color: #e5e7e6;
-  box-sizing: border-box;
-}
-
-.search-input:focus {
-  border-color: #2980b9;
-  box-shadow: 0 0 8px rgba(41, 128, 185, 0.5);
-}
-
-.search-loading {
-  position: absolute;
-  top: 50px;
-  width: 100%;
-  background: #1f2a38;
-  color: #9ea2a8;
-  padding: 10px;
-  text-align: center;
-  border-radius: 4px;
-  z-index: 10;
-  box-sizing: border-box;
-}
-
-.search-results {
-  position: absolute;
-  top: 55px;
-  width: 100%;
-  background: #1f2a38;
-  border: 1px solid #3a3d46;
-  border-radius: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-  z-index: 100;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-  box-sizing: border-box;
-}
-
-.search-result-item {
-  padding: 12px 15px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #2a313c;
-  transition: background-color 0.2s ease;
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-}
-
-.search-result-item:hover {
-  background-color: #2a313c;
-}
-
-.search-result-symbol {
-  font-weight: bold;
-  color: #fff;
-  min-width: 60px;
-}
-
-.search-result-name {
-  color: #b0b4ba;
-  flex-grow: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.search-result-exchange {
-  font-size: 12px;
-  color: #6c727c;
-  background: #101923;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.ai-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Products.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Products.tsx
+// ==================================================
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom"; 
 import axios from "../../config/axiosConfig";
@@ -8148,7 +4169,7 @@ const StockList10: React.FC = () => {
   const [symbol, setSymbol] = useState("");
   const [prediction, setPrediction] = useState<string | null>(null);
   const [decision, setDecision] = useState<string | null>(null);
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -8305,18 +4326,18 @@ const StockList10: React.FC = () => {
     setSymbol(result.symbol);
     setSearchQuery("");
     setSearchResults([]);
-    
+
     try {
       const priceRes = await axios.get(`/market/price/${result.symbol}`);
       const currentPrice = priceRes.data.currentPrice;
       const logo = await fetchLogo(result.symbol);
-      
+
       const newStock: Stock = {
         symbol: result.symbol,
         currentPrice: currentPrice,
         logo: logo
       };
-      
+
       // Navigate to Invest page immediately
       handleRedirectToInvest(newStock);
     } catch (error) {
@@ -8355,7 +4376,7 @@ const StockList10: React.FC = () => {
               </div>
             )}
           </div>
-          
+
           <div className="ai-actions" style={{ marginTop: '20px' }}>
             <input
               type="text"
@@ -8423,200 +4444,9 @@ const StockList10: React.FC = () => {
 
 export default StockList10;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Profile.css
-================================================================================
-
-.profile-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background-color: #0f172a !important;
-  min-height: 100vh;
-  padding: 30px 20px;
-  color: #f8fafc;
-  box-sizing: border-box; /* Ensures padding is included in width/height */
-}
-
-/* Profile Card */
-.profile-card-custom {
-  background-color: #1e293b;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
-  width: 100%;
-  max-width: 600px;
-  text-align: center;
-  box-sizing: border-box;
-}
-
-/* Profile Header */
-.profile-header {
-  margin-bottom: 25px;
-}
-
-.profile-header h2 {
-  font-size: 24px;
-  font-weight: bold;
-  color: #38bdf8;
-  margin: 10px 0 0;
-}
-
-/* Profile Picture */
-.profile-picture-container {
-  width: 140px;
-  height: 140px;
-  margin: 0 auto;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 3px solid #38bdf8;
-}
-
-.profile-picture {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background-color: #1e293b;
-}
-
-/* Profile Fields */
-.profile-field-custom {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 15px;
-  text-align: left;
-  width: 100%;
-}
-
-.profile-field-custom label {
-  font-weight: bold;
-  margin-bottom: 5px;
-  color: #94a3b8;
-}
-
-.profile-field-custom p,
-.profile-field-custom input {
-  font-size: 16px;
-  padding: 10px;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  background-color: #1e293b;
-  color: #f8fafc;
-}
-
-.profile-field-custom input:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
-}
-
-/* Buttons */
-.chart-buttons button {
-  background-color: #38bdf8;
-  color: #0f172a;
-  border: none;
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: bold;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.chart-buttons button:hover {
-  background-color: #0ea5e9;
-  transform: scale(1.05);
-}
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .profile-container {
-    padding: 20px;
-  }
-
-  .profile-card-custom {
-    padding: 20px;
-  }
-
-  .profile-header h2 {
-    font-size: 22px;
-  }
-
-  .profile-field-custom input {
-    font-size: 14px;
-    padding: 8px;
-  }
-
-  .chart-buttons button {
-    padding: 10px 20px;
-    font-size: 14px;
-  }
-}
-
-@media (max-width: 768px) {
-  .profile-container {
-    padding: 15px;
-  }
-
-  .profile-card-custom {
-    padding: 15px;
-  }
-
-  .profile-header h2 {
-    font-size: 20px;
-  }
-
-  .profile-picture-container {
-    width: 120px;
-    height: 120px;
-  }
-
-  .profile-field-custom input {
-    font-size: 14px;
-    padding: 6px;
-  }
-
-  .chart-buttons button {
-    padding: 8px 16px;
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .profile-container {
-    padding: 10px;
-  }
-
-  .profile-card-custom {
-    padding: 10px;
-  }
-
-  .profile-header h2 {
-    font-size: 18px;
-  }
-
-  .profile-picture-container {
-    width: 100px;
-    height: 100px;
-  }
-
-  .profile-field-custom input {
-    font-size: 12px;
-    padding: 5px;
-  }
-
-  .chart-buttons button {
-    padding: 6px 12px;
-    font-size: 10px;
-  }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Profile.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Profile.tsx
+// ==================================================
 import React, { useEffect, useState } from "react";
 import axios from "../../config/axiosConfig";
 import Navbar from "../Home/Navbar";
@@ -8830,106 +4660,9 @@ const Profile: React.FC = () => {
 
 export default Profile;
 
-
-================================================================================
-FILE: ./frontend/src/components/pages/Transactions.css
-================================================================================
-
-.transaction-list-container {
-  
-  padding: 20px;
-  background-color: #101923;
-  color: #ffffff;
-}
-
-.transaction-list-header {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 30px;
-  text-align: center;
-}
-
-.transaction-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); /* Adjusted for wider cards */
-  gap: 20px;
-}
-
-.transaction-item {
-  background-color: #162447;
-  border-radius: 8px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.transaction-item:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-}
-
-.transaction-header h2 {
-  font-size: 16px; 
-  font-weight: bold;
-  color: #ffffff;
-  margin: 0;
-  text-overflow: ellipsis; 
-  overflow: hidden; 
-  white-space: nowrap; 
-}
-
-
-.transaction-logo {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  margin-right: 10px;
-  background-color: #ffffff;
-}
-
-.transaction-details {
-  border-top: 1px solid #e5e7e6;
-  padding-top: 10px;
-  margin-top: 10px;
-}
-
-.transaction-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.transaction-table th,
-.transaction-table td {
-  text-align: left;
-  padding: 10px;
-  font-size: 14px;
-  border-bottom: 1px solid #2a2f3e;
-}
-
-.transaction-table th {
-  font-weight: bold;
-  color: #90abcb;
-  font-size: 15px;
-  text-transform: uppercase;
-}
-
-.transaction-table td {
-  color: #ffffff;
-}
-
-.transaction-row-highlight {
-  font-weight: bold;
-  color: #ffd700; /* Gold color to highlight */
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/pages/Transactions.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/pages/Transactions.tsx
+// ==================================================
 import React, { useEffect, useState } from 'react';
 import axios from '../../config/axiosConfig';
 import Navbar from '../Home/Navbar';
@@ -9100,227 +4833,9 @@ const Transactions: React.FC = () => {
 
 export default Transactions;
 
-
-================================================================================
-FILE: ./frontend/src/components/Presentation/Presentation.css
-================================================================================
-
-.presentation {
-  font-family: 'Manrope', 'Noto Sans', sans-serif;
-  background-color: #111517;
-  color: white;
-  line-height: 1.6;
-  text-align: center;
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
-}
-
-.header {
-  text-align: center;
-  align-items: center !important;
-  justify-content: center !important; 
-  padding: 40px 20px;
-  background-image: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)),
-    url('https://cdn.usegalileo.ai/sdxl10/41771ad7-7853-4ec0-9ded-aadeca8c3489.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.header-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center !important;
-  justify-content: center !important; 
-  font-size: 1.6rem;
-}
-
-.title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
-
-.subtitle {
-  font-size: 1.2rem;
-  margin-bottom: 20px;
-}
-
-.cta-button {
-  background-color: #1d8cd7;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 20px;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.3s;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.cta-button:hover {
-  background-color: #0056b3;
-}
-
-.why-us, .meet-team, .cta-section {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.section-title {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 20px;
-}
-
-.section-description {
-  font-size: 1.1rem;
-  margin-bottom: 30px;
-}
-
-.feature-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  justify-content: center;
-}
-
-.feature-card {
-  background-color: #1c2226;
-  border: 1px solid #3d4a52;
-  border-radius: 8px;
-  padding: 20px;
-  text-align: center;
-}
-
-.team-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  justify-content: center;
-}
-
-.team-card {
-  background-color: #1c2226;
-  border: 1px solid #3d4a52;
-  border-radius: 8px;
-  padding: 20px;
-  text-align: center;
-}
-
-.cta-section {
-  background-color: #1d8cd7;
-  color: white;
-  padding: 40px 20px;
-}
-
-.cta-title {
-  font-size: 1.8rem;
-  margin-bottom: 20px;
-}
-
-.footer {
-  text-align: center;
-  padding: 20px;
-  background-color: #1c2226;
-}
-
-.footer-links {
-  margin-bottom: 10px;
-}
-
-.footer-links a {
-  color: #9eadb7;
-  margin: 0 10px;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .title {
-    font-size: 2rem;
-  }
-
-  .subtitle {
-    font-size: 1rem;
-  }
-
-  .feature-cards,
-  .team-cards {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  }
-
-  .cta-title {
-    font-size: 1.6rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .title {
-    font-size: 1.8rem;
-  }
-
-  .subtitle {
-    font-size: 0.9rem;
-  }
-
-  .feature-cards,
-  .team-cards {
-    grid-template-columns: 1fr;
-  }
-
-  .section-description {
-    font-size: 1rem;
-  }
-
-  .cta-title {
-    font-size: 1.4rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .header {
-    padding: 30px 15px;
-  }
-
-  .title {
-    font-size: 1.6rem;
-  }
-
-  .subtitle {
-    font-size: 0.8rem;
-    margin-bottom: 15px;
-  }
-
-  .cta-button {
-    padding: 8px 16px;
-    font-size: 0.9rem;
-  }
-
-  .feature-cards,
-  .team-cards {
-    grid-template-columns: 1fr;
-    gap: 15px;
-  }
-
-  .section-description {
-    font-size: 0.9rem;
-  }
-
-  .cta-title {
-    font-size: 1.2rem;
-  }
-}
-
-
-================================================================================
-FILE: ./frontend/src/components/Presentation/Presentation.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/components/Presentation/Presentation.tsx
+// ==================================================
 import React from 'react';
 import './Presentation.css';
 
@@ -9390,11 +4905,9 @@ const TradingPresentation = () => {
 
 export default TradingPresentation;
 
-
-================================================================================
-FILE: ./frontend/src/config/axiosConfig.ts
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/config/axiosConfig.ts
+// ==================================================
 import axios from 'axios';
 
 const instance = axios.create({
@@ -9413,11 +4926,9 @@ instance.interceptors.request.use((config) => {
 
 export default instance;
 
-
-================================================================================
-FILE: ./frontend/src/context/AuthContext.tsx
-================================================================================
-
+// ==================================================
+// FILE: ./frontend/src/context/AuthContext.tsx
+// ==================================================
 import React, { createContext, useState, useContext } from 'react';
 import axios from '../config/axiosConfig';
 
@@ -9454,11 +4965,9 @@ export const AuthProvider: React.FC = ({ children }) => {
 
 export default AuthContext;
 
-
-================================================================================
-FILE: ./lstm_network/app.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/app.py
+// ==================================================
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import main
@@ -9495,11 +5004,9 @@ def should_buy():
 if __name__ == '__main__':
     app.run(debug=True)
 
-
-================================================================================
-FILE: ./lstm_network/main.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/main.py
+// ==================================================
 from model.model import create_model, train_model
 from training.fetch_data import fetch_stock_data
 from training.process_data import process_data
@@ -9518,10 +5025,10 @@ def train_and_save():
         X, y, _ = process_data(df)
         all_X.append(X)
         all_y.append(y)
-    
+
     all_X = np.concatenate(all_X, axis=0)
     all_y = np.concatenate(all_y, axis=0)
-    
+
     model = create_model(input_shape=(all_X.shape[1], 1))
     train_model(model, all_X, all_y)
     model.save(model_path)
@@ -9552,74 +5059,9 @@ def should_buy(predicted_price, last_close_price):
     else:
         return "Don't Buy"
 
-
-================================================================================
-FILE: ./lstm_network/README.md
-================================================================================
-
-# LSTM Network & Spark Data Processing
-
-This microservice handles the heavy lifting for data analytics, specifically focusing on machine learning predictions (LSTM) and large-scale data manipulation (Apache Spark).
-
-## Tech Stack
-- **Language**: Python 3
-- **Web Framework**: Flask
-- **Machine Learning**: TensorFlow (Keras), Scikit-Learn
-- **Data Manipulation**: Pandas, NumPy
-- **Big Data Engine**: Apache Spark (PySpark)
-
-## Getting Started
-
-### Prerequisites
-- Python 3.9+
-- Java 8 or 11 (required to run Apache Spark locally)
-
-### Installation
-1. Navigate to this directory:
-   ```bash
-   cd lstm_network
-   ```
-2. Create and activate a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   ```
-3. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Running the Application (Flask)
-Start the Python REST API that serves predictions:
-```bash
-python app.py
-# or
-flask run
-```
-
-## Apache Spark Integration
-
-We use PySpark to process stock data at scale and simulate real-time data streaming.
-
-### 1. Batch Processing
-To process large datasets of historical CSV files, calculate moving averages, and scale features using PySpark ML:
-```bash
-python training/spark_batch.py
-```
-*(This can also be triggered remotely via the Node.js backend `/api/spark/batch` endpoint).*
-
-### 2. Streaming Processing (Simulation)
-To run the Structured Streaming job that listens for new files in `data/stream_in/`:
-```bash
-python training/spark_stream.py
-```
-*Drop JSON files containing stock ticks into `lstm_network/data/stream_in/` to see the stream process them in real time.*
-
-
-================================================================================
-FILE: ./lstm_network/model/model.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/model/model.py
+// ==================================================
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM
 from tensorflow.keras.optimizers import Adam
@@ -9637,23 +5079,21 @@ def create_model(input_shape):
 def train_model(model, X, y, epochs=10, batch_size=32):
     model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=1)
 
-
-================================================================================
-FILE: ./lstm_network/training/fetch_data.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/training/fetch_data.py
+// ==================================================
 import requests
 import pandas as pd
 
 def fetch_stock_data(symbol, api_key):
     url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}'
     response = requests.get(url)
-    
+
     if response.status_code != 200:
         raise ValueError(f"Error fetching data from Alpha Vantage API: {response.status_code} - {response.text}")
-    
+
     data = response.json()
-    
+
     if 'Time Series (Daily)' in data:
         df = pd.DataFrame(data['Time Series (Daily)']).T
         df = df.rename(columns={
@@ -9670,11 +5110,9 @@ def fetch_stock_data(symbol, api_key):
     else:
         raise ValueError(f"Error fetching data for symbol {symbol}: {data.get('Note', 'Unknown error')}")
 
-
-================================================================================
-FILE: ./lstm_network/training/process_data.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/training/process_data.py
+// ==================================================
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
@@ -9692,10 +5130,9 @@ def process_data(df, feature='Close', time_step=60):
     Y = np.array(Y)
     return X, Y, scaler
 
-================================================================================
-FILE: ./lstm_network/training/spark_batch.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/training/spark_batch.py
+// ==================================================
 import argparse
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, avg
@@ -9730,26 +5167,26 @@ def process_batch(input_path, output_path):
         df = spark.read.csv(input_path, header=True, inferSchema=True)
         print("Data schema:")
         df.printSchema()
-        
+
         # Ensure we have required columns for processing. Assuming 'Close' exists.
         if "Close" in df.columns:
             # Example Transformation 1: Calculate 3-day Moving Average (if sufficient data exists)
             # Assuming 'Date' is string or date type that can be ordered
             windowSpec = Window.partitionBy("Symbol").orderBy("Date").rowsBetween(-2, 0)
             df = df.withColumn("MA_3", avg("Close").over(windowSpec))
-            
+
             # Example Transformation 2: Scaling the 'Close' prices using PySpark ML
             # MinMaxScaler requires vector column
             assembler = VectorAssembler(inputCols=["Close"], outputCol="Close_Vec")
             df_vector = assembler.transform(df)
-            
+
             scaler = MinMaxScaler(inputCol="Close_Vec", outputCol="Close_Scaled")
             scalerModel = scaler.fit(df_vector)
             df_scaled = scalerModel.transform(df_vector)
-            
+
             # Select final columns to save (drop vector column for easy saving)
             df_final = df_scaled.drop("Close_Vec")
-            
+
             print("Processing complete. Showing top 5 rows:")
             df_final.show(5)
 
@@ -9758,7 +5195,7 @@ def process_batch(input_path, output_path):
             print(f"Saved processed data to {output_path}")
         else:
             print("Error: 'Close' column not found in input data.")
-            
+
     except Exception as e:
         print(f"Error during batch processing: {e}")
     finally:
@@ -9769,19 +5206,17 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=str, default="data/sample_historical.csv", help="Input CSV path")
     parser.add_argument("--output", type=str, default="data/processed_batch", help="Output directory path")
     args = parser.parse_args()
-    
+
     # Ensure relative paths resolve correctly from the script location or project root
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     in_path = os.path.join(base_dir, args.input)
     out_path = os.path.join(base_dir, args.output)
-    
+
     process_batch(in_path, out_path)
 
-
-================================================================================
-FILE: ./lstm_network/training/spark_stream.py
-================================================================================
-
+// ==================================================
+// FILE: ./lstm_network/training/spark_stream.py
+// ==================================================
 import argparse
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, current_timestamp
@@ -9816,14 +5251,14 @@ def process_stream(input_dir, output_dir, checkpoint_dir):
     # Write the stream
     # We write to console for easy local debugging, but also to files if needed.
     # We will write to console to demonstrate the capability locally.
-    
+
     # Using 'append' output mode as we are just adding new rows
     query = df_processed.writeStream \
         .outputMode("append") \
         .format("console") \
         .trigger(processingTime='5 seconds') \
         .start()
-    
+
     # Also write to CSV output dir as an alternative
     query_files = df_processed.writeStream \
         .outputMode("append") \
@@ -9853,16 +5288,15 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="data/stream_out", help="Output streaming directory")
     parser.add_argument("--checkpoint", type=str, default="data/stream_checkpoint", help="Checkpoint directory")
     args = parser.parse_args()
-    
+
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     in_dir = os.path.join(base_dir, args.input)
     out_dir = os.path.join(base_dir, args.output)
     chk_dir = os.path.join(base_dir, args.checkpoint)
-    
+
     # Ensure directories exist
     os.makedirs(in_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(chk_dir, exist_ok=True)
-    
-    process_stream(in_dir, out_dir, chk_dir)
 
+    process_stream(in_dir, out_dir, chk_dir)
